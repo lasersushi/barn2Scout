@@ -1,25 +1,38 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/picklist.dart';
 import '../models/scouting_record.dart';
+import 'picklist_repository.dart';
 import 'scouting_repository.dart';
 
-/// Bidirectional sync between local Isar and Supabase.
+/// Bidirectional sync between local storage and Supabase.
 ///
-/// Push: unsynced local records → Supabase (upsert by uuid).
-/// Pull: records in Supabase for [eventKey] not yet in Isar → save locally.
+/// Scouting records: push unsynced → Supabase; pull new by event key.
+/// Picklists: push all local → Supabase (upsert); pull all remote and merge
+/// (remote wins when updatedAt is newer).
 class SyncRepository {
-  SyncRepository(this._scouting);
+  SyncRepository(this._scouting, this._picklists);
 
   final ScoutingRepository _scouting;
+  final PicklistRepository _picklists;
   final _client = Supabase.instance.client;
 
+  bool get _authenticated => _client.auth.currentUser != null;
+
+  // ── Full sync ─────────────────────────────────────────────────────────────
+
   Future<void> sync(String eventKey) async {
-    if (_client.auth.currentUser == null) return;
-    await _push();
-    await _pull(eventKey);
+    if (!_authenticated) return;
+    await pushRecords();
+    await pullRecords(eventKey);
+    await pushPicklists();
+    await pullPicklists();
   }
 
-  Future<void> _push() async {
+  // ── Scouting records ─────────────────────────────────────────────────────
+
+  Future<void> pushRecords() async {
+    if (!_authenticated) return;
     final unsynced = await _scouting.getUnsynced();
     if (unsynced.isEmpty) return;
     final userId = _client.auth.currentUser!.id;
@@ -44,7 +57,8 @@ class SyncRepository {
     await _scouting.markSynced(unsynced.map((r) => r.uuid));
   }
 
-  Future<void> _pull(String eventKey) async {
+  Future<void> pullRecords(String eventKey) async {
+    if (!_authenticated) return;
     final rows = await _client
         .from('scouting_records')
         .select()
@@ -63,16 +77,50 @@ class SyncRepository {
         eventKey: raw['event_key'] as String,
         scouterName: (raw['scouter_name'] as String?) ?? '',
         timestamp: DateTime.parse(raw['timestamp'] as String).toLocal(),
-        autoData:
-            (raw['auto_data'] as Map<String, dynamic>?) ?? {},
-        teleopData:
-            (raw['teleop_data'] as Map<String, dynamic>?) ?? {},
-        endgameData:
-            (raw['endgame_data'] as Map<String, dynamic>?) ?? {},
+        autoData: (raw['auto_data'] as Map<String, dynamic>?) ?? {},
+        teleopData: (raw['teleop_data'] as Map<String, dynamic>?) ?? {},
+        endgameData: (raw['endgame_data'] as Map<String, dynamic>?) ?? {},
         notes: (raw['notes'] as String?) ?? '',
         synced: true,
       );
       await _scouting.save(record);
     }
+  }
+
+  // ── Picklists ─────────────────────────────────────────────────────────────
+
+  Future<void> pushPicklists() async {
+    if (!_authenticated) return;
+    final rows = _picklists.lists.map((l) => l.toSupabaseRow()).toList();
+    if (rows.isEmpty) return;
+    await _client.from('picklists').upsert(rows);
+  }
+
+  Future<void> pullPicklists() async {
+    if (!_authenticated) return;
+    final rows = await _client.from('picklists').select() as List<dynamic>;
+    if (rows.isEmpty) return;
+
+    final remote = rows
+        .cast<Map<String, dynamic>>()
+        .map(Picklist.fromSupabase)
+        .toList();
+
+    // Merge: build a map of local lists by id, then overlay remote entries
+    // that are newer (or missing locally).
+    final localById = {for (final l in _picklists.lists) l.id: l};
+    for (final r in remote) {
+      final local = localById[r.id];
+      if (local == null || r.updatedAt.isAfter(local.updatedAt)) {
+        localById[r.id] = r;
+      }
+    }
+
+    final merged = localById.values.toList();
+    final activeId = _picklists.activeId;
+    final validActive = merged.any((l) => l.id == activeId)
+        ? activeId
+        : merged.first.id;
+    await _picklists.persist(merged, validActive);
   }
 }

@@ -45,7 +45,10 @@ Future<void> main() async {
         RepositoryProvider.value(value: picklistRepo),
         RepositoryProvider(create: (_) => ScoutingRepository(isar)),
         RepositoryProvider(
-          create: (ctx) => SyncRepository(ctx.read<ScoutingRepository>()),
+          create: (ctx) => SyncRepository(
+            ctx.read<ScoutingRepository>(),
+            ctx.read<PicklistRepository>(),
+          ),
         ),
         RepositoryProvider(create: (_) => TeamRepository(isar)),
         RepositoryProvider(create: (_) => MatchRepository(isar)),

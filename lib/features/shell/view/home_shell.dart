@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../data/repositories/schedule_repository.dart';
+import '../../../data/repositories/scouting_repository.dart';
 import '../../../data/repositories/sync_repository.dart';
 import '../../auth/cubit/auth_cubit.dart';
 import '../../records/view/records_page.dart';
@@ -106,6 +107,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           create: (ctx) => SyncCubit(
             ctx.read<SyncRepository>(),
             ctx.read<ScheduleRepository>(),
+            ctx.read<ScoutingRepository>(),
           )..syncNow(),
         ),
       ],
