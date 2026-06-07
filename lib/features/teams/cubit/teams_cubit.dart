@@ -1,6 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../core/config/app_config.dart';
 import '../../../data/models/nexus_pit.dart';
 import '../../../data/repositories/schedule_repository.dart';
 
@@ -11,12 +10,16 @@ class TeamsCubit extends Cubit<TeamsState> {
 
   final ScheduleRepository _repo;
 
-  Future<void> load([String eventKey = AppConfig.currentEventKey]) async {
+  /// Loads pit map for [eventKey], or auto-detects Team 751's current event
+  /// if no key is provided. The repository caches the detected key so this
+  /// doesn't make a redundant TBA call if ScheduleCubit already resolved it.
+  Future<void> load([String? eventKey]) async {
     if (state is TeamsLoading) return;
     emit(const TeamsLoading());
     try {
-      final pits = await _repo.getPits(eventKey);
-      emit(TeamsLoaded(pits: pits, eventKey: eventKey));
+      final key = eventKey ?? await _repo.detectCurrentEvent();
+      final pits = await _repo.getPits(key);
+      emit(TeamsLoaded(pits: pits, eventKey: key));
     } catch (e) {
       emit(TeamsError(e.toString()));
     }

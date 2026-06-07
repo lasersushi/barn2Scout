@@ -1,3 +1,4 @@
+import '../../core/config/app_config.dart';
 import '../models/nexus_match.dart';
 import '../models/nexus_pit.dart';
 import '../models/tba_match.dart';
@@ -13,6 +14,60 @@ class ScheduleRepository {
 
   final TbaService tba;
   final NexusService nexus;
+
+  /// Cached result so both schedule and teams cubits don't each make a call.
+  String? _cachedEventKey;
+
+  /// The resolved event key if already detected, otherwise the config fallback.
+  /// Safe to read synchronously after the schedule has loaded at least once.
+  String get resolvedEventKey => _cachedEventKey ?? AppConfig.currentEventKey;
+
+  /// Finds Team 751's current event automatically from TBA:
+  ///   1. Active today (start ≤ now ≤ end+1d)
+  ///   2. Most recently completed
+  ///   3. Next upcoming
+  ///   4. Falls back to AppConfig.currentEventKey if TBA has nothing
+  Future<String> detectCurrentEvent() async {
+    if (_cachedEventKey != null) return _cachedEventKey!;
+
+    final year = DateTime.now().year;
+    final data = await tba.get(
+      '/team/${AppConfig.myTeamKey}/events/$year/simple',
+    ) as List;
+    final events = data.cast<Map<String, dynamic>>();
+    final now = DateTime.now();
+
+    // 1 — currently active
+    for (final e in events) {
+      final start = DateTime.parse(e['start_date'] as String);
+      final end = DateTime.parse(e['end_date'] as String)
+          .add(const Duration(days: 1));
+      if (now.isAfter(start) && now.isBefore(end)) {
+        return _cachedEventKey = e['key'] as String;
+      }
+    }
+
+    // 2 — most recently completed
+    final past = events
+        .where((e) => DateTime.parse(e['end_date'] as String).isBefore(now))
+        .toList()
+      ..sort((a, b) => DateTime.parse(b['end_date'] as String)
+          .compareTo(DateTime.parse(a['end_date'] as String)));
+    if (past.isNotEmpty) return _cachedEventKey = past.first['key'] as String;
+
+    // 3 — next upcoming
+    final future = events
+        .where((e) => DateTime.parse(e['start_date'] as String).isAfter(now))
+        .toList()
+      ..sort((a, b) => DateTime.parse(a['start_date'] as String)
+          .compareTo(DateTime.parse(b['start_date'] as String)));
+    if (future.isNotEmpty) {
+      return _cachedEventKey = future.first['key'] as String;
+    }
+
+    // 4 — hardcoded fallback
+    return _cachedEventKey = AppConfig.currentEventKey;
+  }
 
   /// Fetches all matches for [eventKey] from TBA, sorted in competition order.
   Future<List<TbaMatch>> getMatches(String eventKey) async {

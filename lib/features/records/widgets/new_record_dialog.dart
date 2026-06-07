@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+
+import '../../../data/repositories/schedule_repository.dart';
+import '../../../features/settings/cubit/settings_cubit.dart';
 
 /// What [NewRecordDialog] returns when the user starts a record.
 class NewRecordRequest {
@@ -15,9 +19,7 @@ class NewRecordRequest {
   final String scouterName;
 }
 
-/// Quick manual entry to start a scouting record. Temporary until the schedule
-/// view opens the form with team/match/event already known. Uses a
-/// [StatefulWidget] only to own the text controllers' lifecycle.
+/// Quick manual entry to start a scouting record.
 class NewRecordDialog extends StatefulWidget {
   const NewRecordDialog({super.key});
 
@@ -29,10 +31,19 @@ class _NewRecordDialogState extends State<NewRecordDialog> {
   final _formKey = GlobalKey<FormState>();
   final _team = TextEditingController();
   final _match = TextEditingController();
-  final _scouter = TextEditingController();
+  late final TextEditingController _scouter;
+  late final String _eventKey;
 
-  // Placeholder until Settings/Schedule provides the active event key.
-  static const _eventKey = '2027casvr';
+  @override
+  void initState() {
+    super.initState();
+    final settings = context.read<SettingsCubit>().state;
+    // Pre-fill scouter name from settings; still editable before submitting.
+    _scouter = TextEditingController(text: settings.scouterName);
+    // Event key: settings override → auto-detected → config fallback.
+    _eventKey = settings.eventKeyOverride ??
+        context.read<ScheduleRepository>().resolvedEventKey;
+  }
 
   @override
   void dispose() {

@@ -12,22 +12,22 @@ class ScheduleCubit extends Cubit<ScheduleState> {
 
   final ScheduleRepository _repo;
 
-  /// Load schedule for [eventKey]. Both schedule pages call this on init;
-  /// subsequent calls while already loaded are cheap (no debounce needed
-  /// because IndexedStack keeps pages alive).
-  Future<void> load([String eventKey = AppConfig.currentEventKey]) async {
+  /// Loads the schedule for [eventKey], or auto-detects Team 751's current
+  /// event from TBA if no key is provided.
+  Future<void> load([String? eventKey]) async {
     if (state is ScheduleLoading) return;
     emit(const ScheduleLoading());
     try {
-      // Fetch TBA and Nexus in parallel.
+      final key = eventKey ?? await _repo.detectCurrentEvent();
+
       final results = await Future.wait([
-        _repo.getMatches(eventKey),
-        _repo.getEventName(eventKey),
-        _repo.getNexusMatches(eventKey),
+        _repo.getMatches(key),
+        _repo.getEventName(key),
+        _repo.getNexusMatches(key),
       ]);
 
       emit(ScheduleLoaded(
-        eventKey: eventKey,
+        eventKey: key,
         eventName: results[1] as String,
         allMatches: results[0] as List<TbaMatch>,
         nexusMatches: results[2] as List<NexusMatch>,
