@@ -3,11 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../data/models/nexus_pit.dart';
+import '../../../data/repositories/picklist_repository.dart';
 import '../../../data/repositories/schedule_repository.dart';
-import '../../../data/repositories/scouting_repository.dart';
-import '../cubit/analytics_cubit.dart';
+import '../cubit/picklist_cubit.dart';
+import '../cubit/ratings_cubit.dart';
 import '../cubit/teams_cubit.dart';
-import 'rankings_page.dart';
+import 'picklist_page.dart';
 
 class TeamsPage extends StatefulWidget {
   const TeamsPage({super.key});
@@ -41,7 +42,10 @@ class _TeamsPageState extends State<TeamsPage>
               TeamsCubit(ctx.read<ScheduleRepository>())..load(),
         ),
         BlocProvider(
-          create: (ctx) => AnalyticsCubit(ctx.read<ScoutingRepository>()),
+          create: (ctx) => RatingsCubit(ctx.read<ScheduleRepository>())..load(),
+        ),
+        BlocProvider(
+          create: (ctx) => PicklistCubit(ctx.read<PicklistRepository>()),
         ),
       ],
       child: _TeamsView(tab: _tab),
@@ -72,7 +76,7 @@ class _TeamsView extends StatelessWidget {
               controller: tab,
               tabs: const [
                 Tab(text: 'Pit Map'),
-                Tab(text: 'Rankings'),
+                Tab(text: 'Picklist'),
               ],
             ),
           ),
@@ -88,8 +92,8 @@ class _TeamsView extends StatelessWidget {
                     ? const _NoPitsPlaceholder()
                     : _PitMap(byRow: s.byRow),
               },
-              // ── Rankings ─────────────────────────────────────────────────
-              const RankingsPage(),
+              // ── Picklist ─────────────────────────────────────────────────
+              const PicklistPage(),
             ],
           ),
         );

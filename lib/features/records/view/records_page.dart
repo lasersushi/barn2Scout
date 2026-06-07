@@ -74,6 +74,7 @@ class _RecordsView extends StatelessWidget {
     if (request == null || !context.mounted) return;
     await Navigator.of(context).push(
       ScoutingFormPage.route(
+        isMatch: request.isMatch,
         teamNumber: request.teamNumber,
         matchNumber: request.matchNumber,
         eventKey: request.eventKey,

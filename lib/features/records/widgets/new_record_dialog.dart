@@ -11,12 +11,14 @@ class NewRecordRequest {
     required this.matchNumber,
     required this.eventKey,
     required this.scouterName,
+    required this.isMatch,
   });
 
   final int teamNumber;
   final int matchNumber;
   final String eventKey;
   final String scouterName;
+  final bool isMatch;
 }
 
 /// Quick manual entry to start a scouting record.
@@ -33,6 +35,7 @@ class _NewRecordDialogState extends State<NewRecordDialog> {
   final _match = TextEditingController();
   late final TextEditingController _scouter;
   late final String _eventKey;
+  bool _isMatch = true;
 
   @override
   void initState() {
@@ -61,6 +64,7 @@ class _NewRecordDialogState extends State<NewRecordDialog> {
         matchNumber: int.parse(_match.text.trim()),
         eventKey: _eventKey,
         scouterName: _scouter.text.trim(),
+        isMatch: _isMatch,
       ),
     );
   }
@@ -80,6 +84,20 @@ class _NewRecordDialogState extends State<NewRecordDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            DropdownButton<bool>(
+              value: _isMatch,
+              items: [
+                DropdownMenuItem(
+                  value: true,
+                  child: Text('Match scouting'),
+                ),
+                DropdownMenuItem(
+                  value: false,
+                  child: Text('Pit scouting'),
+                ),
+              ],
+              onChanged: (value) => setState(() => _isMatch = value!),
+            ),
             TextFormField(
               controller: _team,
               keyboardType: TextInputType.number,

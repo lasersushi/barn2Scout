@@ -16,10 +16,12 @@ class ScoutingFormPage extends StatelessWidget {
     required this.matchNumber,
     required this.eventKey,
     required this.scouterName,
+    required this.isMatch,
     this.config = kDefaultGameConfig,
   });
 
   final int teamNumber;
+  final bool isMatch;
   final int matchNumber;
   final String eventKey;
   final String scouterName;
@@ -30,11 +32,13 @@ class ScoutingFormPage extends StatelessWidget {
     required int matchNumber,
     required String eventKey,
     required String scouterName,
+    required bool isMatch,
     List<FieldConfig> config = kDefaultGameConfig,
   }) {
     return MaterialPageRoute<void>(
       builder: (_) => ScoutingFormPage(
         teamNumber: teamNumber,
+        isMatch: isMatch,
         matchNumber: matchNumber,
         eventKey: eventKey,
         scouterName: scouterName,

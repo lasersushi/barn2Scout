@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'app.dart';
 import 'data/repositories/event_repository.dart';
 import 'data/repositories/match_repository.dart';
+import 'data/repositories/picklist_repository.dart';
 import 'data/repositories/schedule_repository.dart';
 import 'data/repositories/scouting_repository.dart';
 import 'data/repositories/settings_repository.dart';
@@ -21,6 +22,10 @@ Future<void> main() async {
   final settingsRepo = SettingsRepository();
   await settingsRepo.init();
 
+  // Load saved picklists before runApp so PicklistCubit's initial state is ready.
+  final picklistRepo = PicklistRepository();
+  await picklistRepo.init();
+
   final isarService = await IsarService.open();
   final isar = isarService.isar;
 
@@ -29,6 +34,7 @@ Future<void> main() async {
       providers: [
         RepositoryProvider.value(value: isarService),
         RepositoryProvider.value(value: settingsRepo),
+        RepositoryProvider.value(value: picklistRepo),
         RepositoryProvider(create: (_) => ScoutingRepository(isar)),
         RepositoryProvider(create: (_) => TeamRepository(isar)),
         RepositoryProvider(create: (_) => MatchRepository(isar)),

@@ -1,29 +1,26 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../../core/config/app_config.dart';
-import '../../../data/models/team_analytics.dart';
-import '../../../features/scouting/config/field_config.dart';
-import '../../../features/scouting/config/game_config.dart';
+import '../../../data/models/team_strength.dart';
 
-/// Slides up from the rankings list when the user taps a team row.
-/// Shows per-phase stat cards driven by [kDefaultGameConfig].
+/// Slides up when a team row is tapped on the picklist board. Shows that team's
+/// strength entirely from The Blue Alliance — OPR/DPR/CCWM, ranking, record,
+/// and the spread of its real match scores. No human scouting feeds this.
 class TeamDossierSheet extends StatelessWidget {
   const TeamDossierSheet({
     super.key,
-    required this.team,
+    required this.strength,
     required this.rank,
     required this.totalTeams,
   });
 
-  final TeamAnalytics team;
+  final TeamStrength strength;
   final int rank;
   final int totalTeams;
 
   static Future<void> show(
     BuildContext context, {
-    required TeamAnalytics team,
+    required TeamStrength strength,
     required int rank,
     required int totalTeams,
   }) {
@@ -35,29 +32,46 @@ class TeamDossierSheet extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (_) => TeamDossierSheet(
-        team: team,
+        strength: strength,
         rank: rank,
         totalTeams: totalTeams,
       ),
     );
   }
 
+  static const _relLabels = ['Steady', 'Variable', 'Streaky'];
+  static const _relColors = [
+    Color(0xFF2E7D32),
+    Color(0xFFF9A825),
+    Color(0xFFC62828),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isMine = team.team == AppConfig.myTeamNumber;
+    final r = strength.rating;
+    final isMine = r.team == AppConfig.myTeamNumber;
+    final bucket = strength.reliabilityBucket;
+
+    String num1(double? v) => v == null ? '—' : v.toStringAsFixed(1);
+    String pct(double? v) => v == null ? '—' : '${(v * 100).toStringAsFixed(0)}%';
+
+    final scoreSpread = r.scoreMean == null
+        ? '—'
+        : '${r.scoreMean!.toStringAsFixed(0)}'
+            '${r.scoreStd == null ? '' : ' ± ${r.scoreStd!.toStringAsFixed(0)}'}'
+            ' (${r.matchesPlayed} matches)';
 
     return DraggableScrollableSheet(
-      initialChildSize: 0.65,
-      maxChildSize: 0.95,
-      minChildSize: 0.4,
+      initialChildSize: 0.6,
+      maxChildSize: 0.9,
+      minChildSize: 0.35,
       expand: false,
       builder: (context, scrollController) {
         return ListView(
           controller: scrollController,
           padding: const EdgeInsets.only(bottom: 32),
           children: [
-            // drag handle
             Center(
               child: Container(
                 width: 40,
@@ -84,7 +98,7 @@ class TeamDossierSheet extends StatelessWidget {
                           Row(
                             children: [
                               Text(
-                                'Team ${team.team}',
+                                'Team ${r.team}',
                                 style: TextStyle(
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,
@@ -97,17 +111,31 @@ class TeamDossierSheet extends StatelessWidget {
                               ],
                             ],
                           ),
-                          Text(
-                            '${team.matches} match${team.matches == 1 ? '' : 'es'} scouted',
-                            style: TextStyle(color: cs.onPrimaryContainer),
-                          ),
+                          const SizedBox(height: 4),
+                          if (bucket != null)
+                            Row(
+                              children: [
+                                Icon(Icons.circle,
+                                    size: 10, color: _relColors[bucket]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${_relLabels[bucket]} scorer',
+                                  style:
+                                      TextStyle(color: cs.onPrimaryContainer),
+                                ),
+                              ],
+                            )
+                          else
+                            Text('Consistency: not enough matches',
+                                style: TextStyle(color: cs.onPrimaryContainer)),
                         ],
                       ),
                       const Spacer(),
                       Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            team.composite.toStringAsFixed(0),
+                            strength.blend.toStringAsFixed(0),
                             style: TextStyle(
                               fontSize: 36,
                               fontWeight: FontWeight.bold,
@@ -125,9 +153,48 @@ class TeamDossierSheet extends StatelessWidget {
                 ),
               ),
             ),
-            // Per-phase stat cards
-            for (final phase in ScoutPhase.values)
-              _PhaseCard(phase: phase, team: team),
+            // TBA stats card
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'THE BLUE ALLIANCE',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1,
+                          color: cs.primary,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _StatRow('OPR (offense)', num1(r.opr)),
+                      _StatRow('DPR (defense)', num1(r.dpr)),
+                      _StatRow('CCWM (net contribution)', num1(r.ccwm)),
+                      _StatRow('Event rank', r.rank == null ? '—' : '#${r.rank}'),
+                      _StatRow('Avg ranking points', num1(r.avgRp)),
+                      _StatRow('Win rate', pct(r.winRate)),
+                      _StatRow('Avg match score', scoreSpread),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+              child: Text(
+                'All figures from The Blue Alliance — no scouting data.',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontStyle: FontStyle.italic,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ),
           ],
         );
       },
@@ -135,261 +202,29 @@ class TeamDossierSheet extends StatelessWidget {
   }
 }
 
-class _PhaseCard extends StatelessWidget {
-  const _PhaseCard({required this.phase, required this.team});
-
-  final ScoutPhase phase;
-  final TeamAnalytics team;
-
-  static const _titles = {
-    ScoutPhase.auto: 'Auto',
-    ScoutPhase.teleop: 'Teleop',
-    ScoutPhase.endgame: 'Endgame',
-  };
+class _StatRow extends StatelessWidget {
+  const _StatRow(this.label, this.value);
+  final String label;
+  final String value;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final fields = fieldsForPhase(phase);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _titles[phase]!.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1,
-                  color: cs.primary,
-                ),
-              ),
-              const SizedBox(height: 12),
-              for (final f in fields) ...[
-                _FieldRow(field: f, team: team),
-                const SizedBox(height: 14),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FieldRow extends StatelessWidget {
-  const _FieldRow({required this.field, required this.team});
-
-  final FieldConfig field;
-  final TeamAnalytics team;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final label = Text(
-      field.label,
-      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-    );
-
-    // League max — used to scale bars relative to the best-seen value.
-    double leagueMax(Map<String, double> map) =>
-        map.values.fold<double>(0.0001, math.max);
-
-    switch (field.type) {
-      case FieldType.counter:
-      case FieldType.stopwatch:
-        final v = team.avg[field.key] ?? 0;
-        final unit = field.type == FieldType.stopwatch ? 's' : '/match';
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(child: label),
-                Text(
-                  '${v.toStringAsFixed(1)}$unit',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            _Bar(frac: v / leagueMax(team.avg), fill: cs.primary, track: cs.surfaceContainerHighest),
-          ],
-        );
-
-      case FieldType.rating:
-        final v = team.avg[field.key] ?? 0;
-        return Row(
-          children: [
-            Expanded(child: label),
-            _Stars(value: v, outOf: field.max ?? 5),
-          ],
-        );
-
-      case FieldType.toggle:
-        final p = team.pct[field.key] ?? 0;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(child: label),
-                Text(
-                  '${(p * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            _Bar(frac: p, fill: cs.tertiary, track: cs.surfaceContainerHighest),
-          ],
-        );
-
-      case FieldType.choice:
-        final d = team.dist[field.key] ?? {};
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            label,
-            const SizedBox(height: 8),
-            _DistBar(options: field.options, dist: d),
-          ],
-        );
-
-      case FieldType.text:
-        return label;
-    }
-  }
-}
-
-// ───────────────────────────────────────────── shared mini-widgets ─────────
-
-class _Bar extends StatelessWidget {
-  const _Bar({required this.frac, required this.fill, required this.track});
-
-  final double frac;
-  final Color fill;
-  final Color track;
-
-  @override
-  Widget build(BuildContext context) {
-    final f = (frac.clamp(0.0, 1.0) * 1000).round();
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          if (f > 0)
-            Expanded(flex: f, child: Container(height: 8, color: fill)),
-          if (f < 1000)
-            Expanded(flex: 1000 - f, child: Container(height: 8, color: track)),
+          Text(label, style: TextStyle(color: cs.onSurfaceVariant)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
         ],
       ),
     );
   }
 }
 
-class _Stars extends StatelessWidget {
-  const _Stars({required this.value, required this.outOf});
-
-  final double value;
-  final int outOf;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 1; i <= outOf; i++)
-          Icon(
-            value >= i
-                ? Icons.star
-                : (value >= i - 0.5 ? Icons.star_half : Icons.star_border),
-            size: 18,
-            color: Colors.amber.shade600,
-          ),
-        const SizedBox(width: 6),
-        Text(value.toStringAsFixed(1),
-            style: const TextStyle(fontWeight: FontWeight.w700)),
-      ],
-    );
-  }
-}
-
-class _DistBar extends StatelessWidget {
-  const _DistBar({required this.options, required this.dist});
-
-  final List<String> options;
-  final Map<String, int> dist;
-
-  static const _palette = [
-    Color(0xFF9E9E9E),
-    Color(0xFF607D8B),
-    Color(0xFF42A5F5),
-    Color(0xFF2E7D32),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final total = options.fold<int>(0, (a, o) => a + (dist[o] ?? 0));
-    if (total == 0) return const Text('No data', style: TextStyle(fontSize: 12));
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: Row(
-            children: [
-              for (var i = 0; i < options.length; i++)
-                if ((dist[options[i]] ?? 0) > 0)
-                  Expanded(
-                    flex: dist[options[i]]!,
-                    child: Container(
-                      height: 14,
-                      color: _palette[i % _palette.length],
-                    ),
-                  ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        Wrap(
-          spacing: 12,
-          runSpacing: 4,
-          children: [
-            for (var i = 0; i < options.length; i++)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: _palette[i % _palette.length],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${options[i]} ${dist[options[i]] ?? 0}',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
 class _Badge extends StatelessWidget {
   const _Badge({required this.text, required this.color});
-
   final String text;
   final Color color;
 
