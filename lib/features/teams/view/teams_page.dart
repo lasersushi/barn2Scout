@@ -4,23 +4,55 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/config/app_config.dart';
 import '../../../data/models/nexus_pit.dart';
 import '../../../data/repositories/schedule_repository.dart';
+import '../../../data/repositories/scouting_repository.dart';
+import '../cubit/analytics_cubit.dart';
 import '../cubit/teams_cubit.dart';
+import 'rankings_page.dart';
 
-class TeamsPage extends StatelessWidget {
+class TeamsPage extends StatefulWidget {
   const TeamsPage({super.key});
 
   @override
+  State<TeamsPage> createState() => _TeamsPageState();
+}
+
+class _TeamsPageState extends State<TeamsPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tab;
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (ctx) =>
-          TeamsCubit(ctx.read<ScheduleRepository>())..load(),
-      child: const _TeamsView(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (ctx) =>
+              TeamsCubit(ctx.read<ScheduleRepository>())..load(),
+        ),
+        BlocProvider(
+          create: (ctx) => AnalyticsCubit(ctx.read<ScoutingRepository>()),
+        ),
+      ],
+      child: _TeamsView(tab: _tab),
     );
   }
 }
 
 class _TeamsView extends StatelessWidget {
-  const _TeamsView();
+  const _TeamsView({required this.tab});
+
+  final TabController tab;
 
   @override
   Widget build(BuildContext context) {
@@ -36,22 +68,36 @@ class _TeamsView extends StatelessWidget {
                   onPressed: () => context.read<TeamsCubit>().load(),
                 ),
             ],
+            bottom: TabBar(
+              controller: tab,
+              tabs: const [
+                Tab(text: 'Pit Map'),
+                Tab(text: 'Rankings'),
+              ],
+            ),
           ),
-          body: switch (state) {
-            TeamsInitial() || TeamsLoading() =>
-              const Center(child: CircularProgressIndicator()),
-            TeamsError s => Center(child: Text(s.message)),
-            TeamsLoaded s => s.pits.isEmpty
-                ? const _NoPitsPlaceholder()
-                : _PitMap(byRow: s.byRow),
-          },
+          body: TabBarView(
+            controller: tab,
+            children: [
+              // ── Pit Map ─────────────────────────────────────────────────
+              switch (state) {
+                TeamsInitial() || TeamsLoading() =>
+                  const Center(child: CircularProgressIndicator()),
+                TeamsError s => Center(child: Text(s.message)),
+                TeamsLoaded s => s.pits.isEmpty
+                    ? const _NoPitsPlaceholder()
+                    : _PitMap(byRow: s.byRow),
+              },
+              // ── Rankings ─────────────────────────────────────────────────
+              const RankingsPage(),
+            ],
+          ),
         );
       },
     );
   }
 }
 
-/// Shown when Nexus volunteers haven't configured pit locations yet.
 class _NoPitsPlaceholder extends StatelessWidget {
   const _NoPitsPlaceholder();
 
@@ -79,8 +125,6 @@ class _NoPitsPlaceholder extends StatelessWidget {
   }
 }
 
-/// Visual pit map grouped by row. Each row is a horizontal scrolling strip
-/// of pit tiles so the layout mirrors the physical pit area.
 class _PitMap extends StatelessWidget {
   const _PitMap({required this.byRow});
 
