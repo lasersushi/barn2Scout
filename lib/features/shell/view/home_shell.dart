@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../data/repositories/schedule_repository.dart';
 import '../../../data/repositories/sync_repository.dart';
+import '../../auth/cubit/auth_cubit.dart';
 import '../../records/view/records_page.dart';
 import '../../schedule/cubit/schedule_cubit.dart';
 import '../../schedule/view/barn2_schedule_page.dart';
@@ -14,13 +15,41 @@ import '../../sync/cubit/sync_cubit.dart';
 import '../../teams/view/teams_page.dart';
 import '../cubit/navigation_cubit.dart';
 
-/// The app's root scaffold: a bottom navigation bar over the main sections.
-///
-/// Pages live in an [IndexedStack] so switching tabs preserves state and scroll
-/// position. The Past Matches tab is appended at the end (index 5) when the
-/// user enables it in Settings — the existing indices 0–4 never shift.
-class HomeShell extends StatelessWidget {
+class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
+
+  @override
+  State<HomeShell> createState() => _HomeShellState();
+}
+
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
+  static const _inactivityLimit = Duration(hours: 2);
+  DateTime? _pausedAt;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _pausedAt = DateTime.now();
+    } else if (state == AppLifecycleState.resumed && _pausedAt != null) {
+      final inactive = DateTime.now().difference(_pausedAt!);
+      if (inactive > _inactivityLimit) {
+        context.read<AuthCubit>().signOutDueToInactivity();
+      }
+      _pausedAt = null;
+    }
+  }
 
   static List<Widget> _buildPages(bool showPast) => [
         const Barn2SchedulePage(),

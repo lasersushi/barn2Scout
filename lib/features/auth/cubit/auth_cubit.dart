@@ -14,12 +14,14 @@ class AuthCubit extends Cubit<AuthState> {
       email.trim().toLowerCase().endsWith('@priorypanther.com');
 
   void _checkSession() {
-    final user = _client.auth.currentUser;
-    if (user != null) {
-      emit(AuthAuthenticated(user.email ?? ''));
-    } else {
-      emit(const AuthUnauthenticated());
-    }
+    // Always require sign-in on cold start — stored sessions are ignored.
+    emit(const AuthUnauthenticated());
+  }
+
+  /// Call this when the app resumes after being backgrounded for too long.
+  Future<void> signOutDueToInactivity() async {
+    await _client.auth.signOut();
+    emit(const AuthUnauthenticated());
   }
 
   Future<void> signIn(String email, String password) async {

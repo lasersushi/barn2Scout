@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../auth/cubit/auth_cubit.dart';
 import '../cubit/settings_cubit.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -95,6 +96,13 @@ class SettingsPage extends StatelessWidget {
               const ListTile(
                 title: Text('Version'),
                 trailing: Text('1.0.0'),
+              ),
+
+              _SectionHeader('Account'),
+              ListTile(
+                leading: const Icon(Icons.logout),
+                title: const Text('Sign out'),
+                onTap: () => context.read<AuthCubit>().signOut(),
               ),
             ],
           );
