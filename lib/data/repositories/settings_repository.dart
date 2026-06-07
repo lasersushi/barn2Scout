@@ -39,6 +39,8 @@ class SettingsRepository {
   /// null = auto-detect from TBA.
   String? get eventKeyOverride => _data['eventKeyOverride'] as String?;
 
+  bool get showPastMatchesTab => _data['showPastMatchesTab'] as bool? ?? false;
+
   // ── Writes ────────────────────────────────────────────────────────────────
 
   Future<void> setScouterName(String name) =>
@@ -49,6 +51,9 @@ class SettingsRepository {
 
   Future<void> setEventOverride(String key) =>
       _save({'eventKeyOverride': key.trim()});
+
+  Future<void> setShowPastMatchesTab(bool value) =>
+      _save({'showPastMatchesTab': value});
 
   Future<void> clearEventOverride() async {
     _data.remove('eventKeyOverride');

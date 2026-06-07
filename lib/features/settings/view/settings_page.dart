@@ -78,6 +78,15 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
 
+              _SectionHeader('Tabs'),
+              SwitchListTile(
+                title: const Text('Past Matches tab'),
+                subtitle: const Text('Show a tab with completed matches'),
+                value: settings.showPastMatchesTab,
+                onChanged: (value) =>
+                    context.read<SettingsCubit>().setShowPastMatchesTab(value),
+              ),
+
               _SectionHeader('About'),
               ListTile(
                 title: const Text('Team'),

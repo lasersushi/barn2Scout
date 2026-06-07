@@ -17,7 +17,7 @@ class TeamsCubit extends Cubit<TeamsState> {
     if (state is TeamsLoading) return;
     emit(const TeamsLoading());
     try {
-      final key = eventKey ?? await _repo.detectCurrentEvent();
+      final key = eventKey ?? (await _repo.detectCurrentEvent()).key;
       final pits = await _repo.getPits(key);
       emit(TeamsLoaded(pits: pits, eventKey: key));
     } catch (e) {

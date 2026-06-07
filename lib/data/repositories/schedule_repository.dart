@@ -5,6 +5,12 @@ import '../models/tba_match.dart';
 import '../services/nexus_service.dart';
 import '../services/tba_service.dart';
 
+/// Where the detected "current" event sits relative to today.
+///   - [active]   — happening right now
+///   - [upcoming] — registered but hasn't started yet
+///   - [past]     — already finished (the season is over / between seasons)
+enum EventStatus { active, upcoming, past }
+
 /// Combines TBA (full schedule + results) with Nexus (live queue status).
 ///
 /// TBA is the authority on match data. Nexus supplements with real-time status
@@ -15,58 +21,110 @@ class ScheduleRepository {
   final TbaService tba;
   final NexusService nexus;
 
-  /// Cached result so both schedule and teams cubits don't each make a call.
+  /// In-memory cache of the year's events. Fetched once, shared by both detect
+  /// methods so we only hit TBA once even if both are called.
+  List<Map<String, dynamic>>? _cachedEvents;
+
   String? _cachedEventKey;
+  EventStatus _cachedStatus = EventStatus.past;
+  String? _cachedPastEventKey;
 
   /// The resolved event key if already detected, otherwise the config fallback.
-  /// Safe to read synchronously after the schedule has loaded at least once.
   String get resolvedEventKey => _cachedEventKey ?? AppConfig.currentEventKey;
 
-  /// Finds Team 751's current event automatically from TBA:
-  ///   1. Active today (start ≤ now ≤ end+1d)
-  ///   2. Most recently completed
-  ///   3. Next upcoming
-  ///   4. Falls back to AppConfig.currentEventKey if TBA has nothing
-  Future<String> detectCurrentEvent() async {
-    if (_cachedEventKey != null) return _cachedEventKey!;
-
+  Future<List<Map<String, dynamic>>> _fetchEvents() async {
+    if (_cachedEvents != null) return _cachedEvents!;
     final year = DateTime.now().year;
     final data = await tba.get(
       '/team/${AppConfig.myTeamKey}/events/$year/simple',
     ) as List;
-    final events = data.cast<Map<String, dynamic>>();
+    return _cachedEvents = data.cast<Map<String, dynamic>>();
+  }
+
+  /// Finds Team 751's relevant event for the UPCOMING schedule:
+  ///   1. Active today (start ≤ now ≤ end+1d)  → [EventStatus.active]
+  ///   2. Next upcoming                        → [EventStatus.upcoming]
+  ///   3. Most recently completed (off-season) → [EventStatus.past]
+  ///   4. Hard fallback to AppConfig.currentEventKey → [EventStatus.past]
+  ///
+  /// Returns `(key, status)` — callers use [status] to label the title:
+  /// "751 @ X" (active), "Next: X" (upcoming), or "Last: X" (past).
+  Future<({String key, EventStatus status})> detectCurrentEvent() async {
+    if (_cachedEventKey != null) {
+      return (key: _cachedEventKey!, status: _cachedStatus);
+    }
+
+    final events = await _fetchEvents();
     final now = DateTime.now();
+
+    ({String key, EventStatus status}) result(String key, EventStatus status) {
+      _cachedEventKey = key;
+      _cachedStatus = status;
+      return (key: key, status: status);
+    }
 
     // 1 — currently active
     for (final e in events) {
       final start = DateTime.parse(e['start_date'] as String);
-      final end = DateTime.parse(e['end_date'] as String)
-          .add(const Duration(days: 1));
+      final end =
+          DateTime.parse(e['end_date'] as String).add(const Duration(days: 1));
       if (now.isAfter(start) && now.isBefore(end)) {
-        return _cachedEventKey = e['key'] as String;
+        return result(e['key'] as String, EventStatus.active);
       }
     }
 
-    // 2 — most recently completed
-    final past = events
-        .where((e) => DateTime.parse(e['end_date'] as String).isBefore(now))
-        .toList()
-      ..sort((a, b) => DateTime.parse(b['end_date'] as String)
-          .compareTo(DateTime.parse(a['end_date'] as String)));
-    if (past.isNotEmpty) return _cachedEventKey = past.first['key'] as String;
-
-    // 3 — next upcoming
+    // 2 — next upcoming (preferred over past — scouts want to prepare)
     final future = events
         .where((e) => DateTime.parse(e['start_date'] as String).isAfter(now))
         .toList()
       ..sort((a, b) => DateTime.parse(a['start_date'] as String)
           .compareTo(DateTime.parse(b['start_date'] as String)));
     if (future.isNotEmpty) {
-      return _cachedEventKey = future.first['key'] as String;
+      return result(future.first['key'] as String, EventStatus.upcoming);
+    }
+
+    // 3 — most recently completed (season's over, no upcoming events)
+    final past = events
+        .where((e) => DateTime.parse(e['end_date'] as String).isBefore(now))
+        .toList()
+      ..sort((a, b) => DateTime.parse(b['end_date'] as String)
+          .compareTo(DateTime.parse(a['end_date'] as String)));
+    if (past.isNotEmpty) {
+      return result(past.first['key'] as String, EventStatus.past);
     }
 
     // 4 — hardcoded fallback
-    return _cachedEventKey = AppConfig.currentEventKey;
+    return result(AppConfig.currentEventKey, EventStatus.past);
+  }
+
+  /// Always returns the most recently completed event — used by the Past
+  /// Matches tab so it shows results from the last competition even when the
+  /// upcoming schedule is pointing at the next (future) event.
+  Future<String> detectPastEvent() async {
+    if (_cachedPastEventKey != null) return _cachedPastEventKey!;
+
+    final events = await _fetchEvents();
+    final now = DateTime.now();
+
+    // Check if currently active — in that case, past = same event
+    for (final e in events) {
+      final start = DateTime.parse(e['start_date'] as String);
+      final end =
+          DateTime.parse(e['end_date'] as String).add(const Duration(days: 1));
+      if (now.isAfter(start) && now.isBefore(end)) {
+        return _cachedPastEventKey = e['key'] as String;
+      }
+    }
+
+    // Most recently completed
+    final past = events
+        .where((e) => DateTime.parse(e['end_date'] as String).isBefore(now))
+        .toList()
+      ..sort((a, b) => DateTime.parse(b['end_date'] as String)
+          .compareTo(DateTime.parse(a['end_date'] as String)));
+    if (past.isNotEmpty) return _cachedPastEventKey = past.first['key'] as String;
+
+    return _cachedPastEventKey = AppConfig.currentEventKey;
   }
 
   /// Fetches all matches for [eventKey] from TBA, sorted in competition order.
