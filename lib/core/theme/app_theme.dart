@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-/// Barn2Scout visual theme — Team 751 green, Material 3, light + dark.
+/// Barn2Scout visual theme — Barn2 Robotics blue, Material 3, light + dark.
 /// Dark mode matters: scouting happens in dim gyms on dim-screen phones.
 class AppTheme {
   AppTheme._();
 
-  /// Barn2 green.
-  static const Color seed = Color(0xFF2E7D32);
+  /// Barn2 blue — sampled from the Barn2 Robotics logo stripe.
+  static const Color seed = Color(0xFF0060A7);
 
   static ThemeData get light => _build(Brightness.light);
   static ThemeData get dark => _build(Brightness.dark);
