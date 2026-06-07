@@ -9,6 +9,8 @@ import '../widgets/field_input.dart';
 
 /// Opens the scouting form for one team in one match. Provides the
 /// [ScoutingFormBloc] and hosts the [ScoutingFormView].
+/// TODO: implement pit scouting
+/// TODO: add database, servers, and wifi support
 class ScoutingFormPage extends StatelessWidget {
   const ScoutingFormPage({
     super.key,
