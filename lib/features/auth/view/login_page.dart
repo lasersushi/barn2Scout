@@ -77,6 +77,11 @@ class _LoginPageState extends State<LoginPage> {
                       textAlign: TextAlign.center,
                       style: TextStyle(color: cs.onSurfaceVariant),
                     ),
+                    Text(
+                      'Made by Lucas Walker, Class of 2030',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: cs.onSurfaceVariant),
+                    ),
                     const SizedBox(height: 40),
                     TextField(
                       controller: _emailCtrl,
