@@ -49,7 +49,7 @@ class _OtherTeamSchedulesPageState extends State<OtherTeamSchedulesPage> {
                   ? const Center(child: Text('No upcoming matches found.'))
                   : ListView.separated(
                       itemCount: s.upcomingMatches.length,
-                      separatorBuilder: (_, __) => const Divider(height: 1),
+                      separatorBuilder: (_, _) => const Divider(height: 1),
                       itemBuilder: (_, i) => _FullMatchTile(
                         match: s.upcomingMatches[i],
                         ratings: s.ratings,
