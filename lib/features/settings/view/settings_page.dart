@@ -100,6 +100,11 @@ class SettingsPage extends StatelessWidget {
 
               _SectionHeader('Account'),
               ListTile(
+                leading: const Icon(Icons.lock_outline),
+                title: const Text('Change password'),
+                onTap: () => _changePassword(context),
+              ),
+              ListTile(
                 leading: const Icon(Icons.logout),
                 title: const Text('Sign out'),
                 onTap: () => context.read<AuthCubit>().signOut(),
@@ -107,6 +112,65 @@ class SettingsPage extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+
+  Future<void> _changePassword(BuildContext context) async {
+    final currentCtrl = TextEditingController();
+    final newCtrl = TextEditingController();
+    final result = await showDialog<({String current, String next})>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Change password'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: currentCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Current password',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: newCtrl,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'New password',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(
+              (current: currentCtrl.text, next: newCtrl.text),
+            ),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result == null || !context.mounted) return;
+    if (result.current.isEmpty || result.next.isEmpty) return;
+
+    final error =
+        await context.read<AuthCubit>().updatePassword(result.current, result.next);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? 'Password updated.'),
+        backgroundColor: error != null
+            ? Theme.of(context).colorScheme.error
+            : Colors.green.shade700,
       ),
     );
   }

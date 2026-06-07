@@ -72,6 +72,27 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
+  /// Re-authenticates with [currentPassword] then updates to [newPassword].
+  /// Returns an error message string on failure, null on success.
+  Future<String?> updatePassword(String currentPassword, String newPassword) async {
+    final email = _client.auth.currentUser?.email;
+    if (email == null) return 'Not signed in.';
+    if (newPassword.length < 6) return 'Password must be at least 6 characters.';
+    try {
+      // Re-authenticate to confirm identity before changing the password.
+      await _client.auth.signInWithPassword(
+        email: email,
+        password: currentPassword,
+      );
+      await _client.auth.updateUser(UserAttributes(password: newPassword));
+      return null;
+    } on AuthException catch (e) {
+      return e.message;
+    } catch (_) {
+      return 'Something went wrong. Check your connection.';
+    }
+  }
+
   Future<void> signOut() async {
     await _client.auth.signOut();
     emit(const AuthUnauthenticated());
