@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../data/repositories/schedule_repository.dart';
 import '../../records/view/records_page.dart';
+import '../../schedule/cubit/schedule_cubit.dart';
 import '../../schedule/view/barn2_schedule_page.dart';
 import '../../schedule/view/other_team_schedules_page.dart';
 import '../../settings/view/settings_page.dart';
@@ -33,8 +35,13 @@ class HomeShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => NavigationCubit(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (_) => NavigationCubit()),
+        BlocProvider(
+          create: (ctx) => ScheduleCubit(ctx.read<ScheduleRepository>()),
+        ),
+      ],
       child: BlocBuilder<NavigationCubit, int>(
         builder: (context, index) {
           return Scaffold(

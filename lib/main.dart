@@ -4,9 +4,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'app.dart';
 import 'data/repositories/event_repository.dart';
 import 'data/repositories/match_repository.dart';
+import 'data/repositories/schedule_repository.dart';
 import 'data/repositories/scouting_repository.dart';
 import 'data/repositories/team_repository.dart';
 import 'data/services/isar_service.dart';
+import 'data/services/nexus_service.dart';
+import 'data/services/tba_service.dart';
 
 Future<void> main() async {
   // Required before using plugins (path_provider) ahead of runApp.
@@ -25,6 +28,12 @@ Future<void> main() async {
         RepositoryProvider(create: (_) => TeamRepository(isar)),
         RepositoryProvider(create: (_) => MatchRepository(isar)),
         RepositoryProvider(create: (_) => EventRepository(isar)),
+        RepositoryProvider(
+          create: (_) => ScheduleRepository(
+            tba: TbaService(),
+            nexus: NexusService(),
+          ),
+        ),
       ],
       child: const Barn2ScoutApp(),
     ),
