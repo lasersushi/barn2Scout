@@ -37,8 +37,7 @@ class SyncCubit extends Cubit<SyncState> {
       final detected = await _schedule.detectCurrentEvent();
       await _sync.sync(detected.key);
       emit(const SyncDone());
-    } catch (e, st) {
-      print('[Sync] error: $e\n$st');
+    } catch (e) {
       emit(SyncError(e.toString()));
     }
   }
