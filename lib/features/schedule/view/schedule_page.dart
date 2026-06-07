@@ -7,7 +7,7 @@ class SchedulePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Schedule')),
+      appBar: AppBar(title: const Text('Match Schedule')),
       body: const Center(child: Text('Match schedule — coming next')),
     );
   }
