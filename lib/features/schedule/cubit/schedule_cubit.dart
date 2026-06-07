@@ -12,25 +12,52 @@ class ScheduleCubit extends Cubit<ScheduleState> {
 
   final ScheduleRepository _repo;
 
-  /// Loads the schedule for [eventKey], or auto-detects Team 751's current
-  /// event from TBA if no key is provided.
-  Future<void> load([String? eventKey]) async {
+  /// Loads the schedule, or auto-detects Team 751's current/upcoming event.
+  ///
+  /// Fetches two events in parallel when needed:
+  ///   - Current/upcoming event → drives the schedule and Schedules tabs
+  ///   - Most recently completed event → drives the Past Matches tab
+  ///   (If they're the same event, the match list is reused with no extra call.)
+  Future<void> load([String? eventKeyOverride]) async {
     if (state is ScheduleLoading) return;
     emit(const ScheduleLoading());
     try {
-      final key = eventKey ?? await _repo.detectCurrentEvent();
-
-      final results = await Future.wait([
-        _repo.getMatches(key),
-        _repo.getEventName(key),
-        _repo.getNexusMatches(key),
+      // Detect both event keys concurrently.
+      final detected = await Future.wait([
+        eventKeyOverride != null
+            ? Future.value((key: eventKeyOverride, status: EventStatus.active))
+            : _repo.detectCurrentEvent(),
+        _repo.detectPastEvent(),
       ]);
 
+      final current = detected[0] as ({String key, EventStatus status});
+      final pastKey = detected[1] as String;
+      final sameEvent = pastKey == current.key;
+
+      // Load current event data + past event data (skip past fetch if same).
+      final results = await Future.wait([
+        _repo.getMatches(current.key),
+        _repo.getEventName(current.key),
+        _repo.getNexusMatches(current.key),
+        if (!sameEvent) _repo.getMatches(pastKey),
+        if (!sameEvent) _repo.getEventName(pastKey),
+      ]);
+
+      final allMatches = results[0] as List<TbaMatch>;
+      final eventName = results[1] as String;
+      final nexusMatches = results[2] as List<NexusMatch>;
+      final pastAllMatches = sameEvent ? allMatches : results[3] as List<TbaMatch>;
+      final pastEventName = sameEvent ? eventName : results[4] as String;
+
       emit(ScheduleLoaded(
-        eventKey: key,
-        eventName: results[1] as String,
-        allMatches: results[0] as List<TbaMatch>,
-        nexusMatches: results[2] as List<NexusMatch>,
+        eventKey: current.key,
+        eventName: eventName,
+        eventStatus: current.status,
+        allMatches: allMatches,
+        nexusMatches: nexusMatches,
+        pastEventKey: pastKey,
+        pastEventName: pastEventName,
+        pastAllMatches: pastAllMatches,
       ));
     } catch (e) {
       emit(ScheduleError(e.toString()));

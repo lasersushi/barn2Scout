@@ -86,7 +86,7 @@ class RecordDetailPage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: scheme.shadow.withOpacity(0.12),
+                      color: scheme.shadow.withValues(alpha: 0.12),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),
@@ -209,7 +209,7 @@ class _PhaseCard extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
-        color: scheme.surfaceContainerHighest.withOpacity(0.5),
+        color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
         borderRadius: BorderRadius.circular(12),
       ),
       padding: const EdgeInsets.all(14),

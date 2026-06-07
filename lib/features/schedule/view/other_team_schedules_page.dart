@@ -28,7 +28,10 @@ class _OtherTeamSchedulesPageState extends State<OtherTeamSchedulesPage> {
         return Scaffold(
           appBar: AppBar(
             title: switch (state) {
-              ScheduleLoaded s => Text(s.eventName),
+              ScheduleLoaded s when s.isActiveEvent => Text(s.eventName),
+              ScheduleLoaded s when s.isUpcomingEvent =>
+                Text('Next: ${s.eventName}'),
+              ScheduleLoaded s => Text('Last: ${s.eventName}'),
               _ => const Text('Schedules'),
             },
           ),
@@ -37,13 +40,13 @@ class _OtherTeamSchedulesPageState extends State<OtherTeamSchedulesPage> {
                 child: CircularProgressIndicator(),
               ),
             ScheduleError s => Center(child: Text(s.message)),
-            ScheduleLoaded s => s.allMatches.isEmpty
-                ? const Center(child: Text('No matches found.'))
+            ScheduleLoaded s => s.upcomingMatches.isEmpty
+                ? const Center(child: Text('No upcoming matches found.'))
                 : ListView.separated(
-                    itemCount: s.allMatches.length,
+                    itemCount: s.upcomingMatches.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (_, i) =>
-                        _FullMatchTile(match: s.allMatches[i]),
+                        _FullMatchTile(match: s.upcomingMatches[i]),
                   ),
           },
         );
@@ -65,7 +68,7 @@ class _FullMatchTile extends StatelessWidget {
         keys.map(TbaMatch.displayNumber).join(' · ');
 
     return Container(
-      color: has751 ? cs.primaryContainer.withOpacity(0.3) : null,
+      color: has751 ? cs.primaryContainer.withValues(alpha: 0.3) : null,
       child: ListTile(
         title: Row(
           children: [

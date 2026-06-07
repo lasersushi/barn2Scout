@@ -12,6 +12,7 @@ class SettingsCubit extends Cubit<SettingsState> {
           scouterName: _repo.scouterName,
           themeMode: _repo.themeMode,
           eventKeyOverride: _repo.eventKeyOverride,
+          showPastMatchesTab: _repo.showPastMatchesTab,
         ));
 
   final SettingsRepository _repo;
@@ -34,5 +35,10 @@ class SettingsCubit extends Cubit<SettingsState> {
   Future<void> clearEventOverride() async {
     await _repo.clearEventOverride();
     emit(state.copyWith(clearEventOverride: true));
+  }
+
+  Future<void> setShowPastMatchesTab(bool value) async {
+    await _repo.setShowPastMatchesTab(value);
+    emit(state.copyWith(showPastMatchesTab: value));
   }
 }
