@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/config/app_config.dart';
 import '../../../data/models/nexus_match.dart';
 import '../../../data/models/tba_match.dart';
+import '../../../data/models/team_rating.dart';
 import '../../../data/repositories/schedule_repository.dart';
 
 part 'schedule_state.dart';
@@ -49,6 +50,14 @@ class ScheduleCubit extends Cubit<ScheduleState> {
       final pastAllMatches = sameEvent ? allMatches : results[3] as List<TbaMatch>;
       final pastEventName = sameEvent ? eventName : results[4] as String;
 
+      // Prediction ratings are non-essential — never let them fail the load.
+      Map<int, TeamRating> ratings = {};
+      try {
+        ratings = await _repo.fetchTeamRatings(current.key, allMatches);
+      } catch (_) {
+        // Leave ratings empty → no prediction bars, schedule still works.
+      }
+
       emit(ScheduleLoaded(
         eventKey: current.key,
         eventName: eventName,
@@ -58,6 +67,7 @@ class ScheduleCubit extends Cubit<ScheduleState> {
         pastEventKey: pastKey,
         pastEventName: pastEventName,
         pastAllMatches: pastAllMatches,
+        ratings: ratings,
       ));
     } catch (e) {
       emit(ScheduleError(e.toString()));

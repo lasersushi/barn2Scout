@@ -1,7 +1,10 @@
+import 'dart:math' as math;
+
 import '../../core/config/app_config.dart';
 import '../models/nexus_match.dart';
 import '../models/nexus_pit.dart';
 import '../models/tba_match.dart';
+import '../models/team_rating.dart';
 import '../services/nexus_service.dart';
 import '../services/tba_service.dart';
 
@@ -136,6 +139,113 @@ class ScheduleRepository {
         .toList()
       ..sort((a, b) => a.sortKey.compareTo(b.sortKey));
     return matches;
+  }
+
+  /// Builds the per-team strength map used for match prediction, entirely from
+  /// TBA (no scouting). Combines:
+  ///   - `/oprs`      → OPR / DPR / CCWM
+  ///   - `/rankings`  → rank, avg ranking points, W-L-T record
+  ///   - [matches]    → each team's real alliance-score mean + std (already
+  ///                    loaded for the schedule, so no extra calls)
+  ///
+  /// Returns an empty map (→ no predictions shown) if TBA has no OPRs yet,
+  /// e.g. before the event's first matches are played.
+  Future<Map<int, TeamRating>> fetchTeamRatings(
+    String eventKey,
+    List<TbaMatch> matches,
+  ) async {
+    // 1 — OPR/DPR/CCWM. Required; absent until a few matches are played.
+    Map<String, dynamic> oprData;
+    try {
+      oprData = await tba.get('/event/$eventKey/oprs') as Map<String, dynamic>;
+    } catch (_) {
+      return {};
+    }
+    final oprs = (oprData['oprs'] as Map?)?.cast<String, dynamic>() ?? {};
+    if (oprs.isEmpty) return {};
+    final dprs = (oprData['dprs'] as Map?)?.cast<String, dynamic>() ?? {};
+    final ccwms = (oprData['ccwms'] as Map?)?.cast<String, dynamic>() ?? {};
+
+    // 2 — rankings (optional; OPR-only prediction still works without it).
+    final ranks = <int, ({int rank, double? avgRp, double? winRate})>{};
+    try {
+      final rData =
+          await tba.get('/event/$eventKey/rankings') as Map<String, dynamic>;
+      for (final raw in ((rData['rankings'] as List?) ?? [])
+          .cast<Map<String, dynamic>>()) {
+        final n = int.tryParse(TbaMatch.displayNumber(raw['team_key'] as String));
+        if (n == null) continue;
+        // sort_orders[0] is the "Ranking Score" (avg RP) in recent games.
+        final sortOrders = (raw['sort_orders'] as List?) ?? [];
+        final avgRp =
+            sortOrders.isNotEmpty ? (sortOrders.first as num?)?.toDouble() : null;
+        final record = (raw['record'] as Map?)?.cast<String, dynamic>();
+        double? winRate;
+        if (record != null) {
+          final w = (record['wins'] as num?)?.toInt() ?? 0;
+          final l = (record['losses'] as num?)?.toInt() ?? 0;
+          final t = (record['ties'] as num?)?.toInt() ?? 0;
+          if (w + l + t > 0) winRate = w / (w + l + t);
+        }
+        ranks[n] = (
+          rank: (raw['rank'] as num?)?.toInt() ?? 0,
+          avgRp: avgRp,
+          winRate: winRate,
+        );
+      }
+    } catch (_) {
+      // rankings unavailable — leave avgRp/winRate/rank null.
+    }
+
+    // 3 — per-team alliance-score samples from played matches.
+    final samples = <int, List<double>>{};
+    void collect(List<String> keys, int? score) {
+      if (score == null) return;
+      for (final k in keys) {
+        final n = int.tryParse(TbaMatch.displayNumber(k));
+        if (n != null) (samples[n] ??= []).add(score.toDouble());
+      }
+    }
+
+    for (final m in matches) {
+      if (!m.isPlayed) continue;
+      collect(m.redTeams, m.redScore);
+      collect(m.blueTeams, m.blueScore);
+    }
+
+    // 4 — merge into one rating per TBA-rated team.
+    final out = <int, TeamRating>{};
+    for (final entry in oprs.entries) {
+      final n = int.tryParse(TbaMatch.displayNumber(entry.key));
+      if (n == null) continue;
+      final xs = samples[n] ?? const <double>[];
+      final stats = _meanStd(xs);
+      final r = ranks[n];
+      out[n] = TeamRating(
+        team: n,
+        opr: (entry.value as num).toDouble(),
+        dpr: (dprs[entry.key] as num?)?.toDouble() ?? 0,
+        ccwm: (ccwms[entry.key] as num?)?.toDouble() ?? 0,
+        avgRp: r?.avgRp,
+        winRate: r?.winRate,
+        rank: r?.rank,
+        scoreMean: stats.mean,
+        scoreStd: stats.std,
+        matchesPlayed: xs.length,
+      );
+    }
+    return out;
+  }
+
+  /// Sample mean + std (Bessel-corrected) of [xs]. std is null below 2 samples.
+  ({double? mean, double? std}) _meanStd(List<double> xs) {
+    if (xs.isEmpty) return (mean: null, std: null);
+    final mean = xs.reduce((a, b) => a + b) / xs.length;
+    if (xs.length < 2) return (mean: mean, std: null);
+    final variance =
+        xs.map((x) => (x - mean) * (x - mean)).reduce((a, b) => a + b) /
+            (xs.length - 1);
+    return (mean: mean, std: math.sqrt(variance));
   }
 
   /// Fetches the event name from TBA.

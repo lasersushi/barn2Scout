@@ -22,6 +22,7 @@ class ScheduleLoaded extends ScheduleState {
     required this.pastEventKey,
     required this.pastEventName,
     required this.pastAllMatches,
+    this.ratings = const {},
   });
 
   /// The current / upcoming event — drives the schedule tabs.
@@ -38,6 +39,10 @@ class ScheduleLoaded extends ScheduleState {
 
   final List<TbaMatch> allMatches;   // from current event, competition order
   final List<NexusMatch> nexusMatches; // empty when not live in Nexus
+
+  /// TBA-derived team strength for the current event, keyed by team number.
+  /// Empty before the event has OPRs — predictions simply don't render.
+  final Map<int, TeamRating> ratings;
 
   /// The most recently completed event — drives the Past Matches tab.
   /// May equal [eventKey] when actively competing.
