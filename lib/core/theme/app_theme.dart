@@ -23,6 +23,12 @@ class AppTheme {
         backgroundColor: colorScheme.surfaceContainer,
         centerTitle: false,
       ),
+      navigationBarTheme: NavigationBarThemeData(
+        height: 60,
+        labelTextStyle: WidgetStateProperty.all(
+          const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+        ),
+      ),
     );
   }
 }

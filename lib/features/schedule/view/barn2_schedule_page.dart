@@ -7,7 +7,7 @@ class Barn2SchedulePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Barn 2 Scout — Schedule')),
+      appBar: AppBar(title: const Text('My Schedule')),
       body: const Center(child: Text('Match schedule — coming next')),
     );
   }
