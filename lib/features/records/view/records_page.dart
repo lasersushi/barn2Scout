@@ -5,8 +5,11 @@ import 'package:intl/intl.dart';
 import '../../../data/models/scouting_record.dart';
 import '../../../data/repositories/scouting_repository.dart';
 import '../../scouting/view/scouting_form_page.dart';
+import '../../settings/cubit/settings_cubit.dart';
 import '../cubit/records_cubit.dart';
 import '../widgets/new_record_dialog.dart';
+import 'qr_scan_page.dart';
+import 'record_detail_page.dart';
 
 /// Lists saved scouting records and lets you start a new one.
 class RecordsPage extends StatelessWidget {
@@ -27,7 +30,16 @@ class _RecordsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Records')),
+      appBar: AppBar(
+        title: const Text('Records'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Scan QR code',
+            onPressed: () => QrScanPage.push(context),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _startNewRecord(context),
         icon: const Icon(Icons.add),
@@ -79,7 +91,11 @@ class _RecordTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final when = DateFormat('MMM d · h:mm a').format(record.timestamp);
-    return ListTile(
+    final myName = context.read<SettingsCubit>().state.scouterName;
+    final isMine = record.scouterName == myName && myName.isNotEmpty;
+
+    final tile = ListTile(
+      onTap: () => RecordDetailPage.push(context, record),
       leading: CircleAvatar(
         child: FittedBox(
           fit: BoxFit.scaleDown,
@@ -98,5 +114,49 @@ class _RecordTile extends StatelessWidget {
             : Theme.of(context).colorScheme.outline,
       ),
     );
+
+    if (!isMine) return tile;
+
+    return Dismissible(
+      key: ValueKey(record.uuid),
+      direction: DismissDirection.endToStart,
+      confirmDismiss: (_) => _confirmDelete(context),
+      onDismissed: (_) {
+        context.read<ScoutingRepository>().deleteByUuid(record.uuid);
+      },
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 24),
+        color: Theme.of(context).colorScheme.error,
+        child: const Icon(Icons.delete_outline, color: Colors.white),
+      ),
+      child: tile,
+    );
+  }
+
+  Future<bool> _confirmDelete(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete record?'),
+        content: Text(
+          'Team ${record.teamNumber} · Match ${record.matchNumber} will be permanently deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
   }
 }
