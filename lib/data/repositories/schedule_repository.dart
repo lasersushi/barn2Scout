@@ -1,4 +1,5 @@
 import '../models/nexus_match.dart';
+import '../models/nexus_pit.dart';
 import '../models/tba_match.dart';
 import '../services/nexus_service.dart';
 import '../services/tba_service.dart';
@@ -41,5 +42,18 @@ class ScheduleRepository {
         .cast<Map<String, dynamic>>()
         .map(NexusMatch.fromJson)
         .toList();
+  }
+
+  /// Returns pit assignments for [eventKey], or an empty list if Nexus
+  /// volunteers haven't configured the pit map yet.
+  Future<List<NexusPit>> getPits(String eventKey) async {
+    try {
+      final data = await nexus.getRaw('/event/$eventKey/pits');
+      // Nexus returns a plain string when no pits are configured.
+      if (data is String) return [];
+      return NexusPit.parseResponse(data);
+    } catch (_) {
+      return [];
+    }
   }
 }

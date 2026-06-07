@@ -14,6 +14,9 @@ class NexusService {
 
   final http.Client _client;
 
+  /// Public raw fetch — returns decoded JSON (could be a String, List, or Map).
+  Future<dynamic> getRaw(String path) => _get(path);
+
   Future<dynamic> _get(String path) async {
     final uri = Uri.parse('${AppConfig.nexusBaseUrl}$path');
     final response = await _client.get(
