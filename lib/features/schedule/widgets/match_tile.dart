@@ -90,7 +90,7 @@ class MatchTile extends StatelessWidget {
             ],
           ),
         ),
-        if (ratings != null && ratings!.isNotEmpty)
+        if (ratings != null && !match.isPlayed)
           MatchPredictionBar(
             prediction: MatchPrediction.compute(match, ratings!),
           ),

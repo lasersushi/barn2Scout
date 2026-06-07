@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../data/models/tba_match.dart';
 import '../cubit/schedule_cubit.dart';
 import '../widgets/match_tile.dart';
 
@@ -52,17 +51,8 @@ class _Barn2SchedulePageState extends State<Barn2SchedulePage> {
                 message: s.message,
                 onRetry: () => context.read<ScheduleCubit>().load(),
               ),
-            ScheduleLoaded s => () {
-                // For past events (all matches played), fall back to showing all
-                // of 751's matches with retrodiction bars (predicted vs actual).
-                final displayMatches = s.myUpcomingMatches.isNotEmpty
-                    ? s.myUpcomingMatches
-                    : s.isPastEvent
-                        ? s.myMatches
-                        : <TbaMatch>[];
-
-                if (displayMatches.isEmpty) {
-                  return Center(
+            ScheduleLoaded s => s.myUpcomingMatches.isEmpty
+                ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(32),
                       child: Column(
@@ -71,12 +61,14 @@ class _Barn2SchedulePageState extends State<Barn2SchedulePage> {
                           const Icon(Icons.event_available, size: 48),
                           const SizedBox(height: 12),
                           const Text(
-                            'No matches yet.',
+                            'No upcoming matches.',
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Check back once the schedule is posted.',
+                            s.myPastMatches.isEmpty
+                                ? 'Check back once the schedule is posted.'
+                                : 'All matches played. Enable Past Matches in Settings → Tabs to review results.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -85,19 +77,16 @@ class _Barn2SchedulePageState extends State<Barn2SchedulePage> {
                         ],
                       ),
                     ),
-                  );
-                }
-
-                return ListView.separated(
-                  itemCount: displayMatches.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (_, i) => MatchTile(
-                    match: displayMatches[i],
-                    nexus: s.nexusFor(displayMatches[i].label),
-                    ratings: s.ratings,
+                  )
+                : ListView.separated(
+                    itemCount: s.myUpcomingMatches.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (_, i) => MatchTile(
+                      match: s.myUpcomingMatches[i],
+                      nexus: s.nexusFor(s.myUpcomingMatches[i].label),
+                      ratings: s.ratings,
+                    ),
                   ),
-                );
-              }(),
           },
         );
       },
