@@ -2,7 +2,7 @@
 
 **FRC Team 751 · Offline-first match scouting for iOS and Android**
 
-Barn2Scout lets scouts record match data at competitions — no internet required. QR codes sync records between phones when WiFi is unavailable. The app auto-detects Team 751's current event from The Blue Alliance, shows live queue status from Nexus, and persists everything locally via Isar until it can sync to the cloud.
+Barn2Scout is a custom built in-house scouting solution for Barn 2 robotics. While it is currently under alpha testing, releasing it to the general public under beta prerelease is being considred.
 
 ---
 
@@ -10,19 +10,20 @@ Barn2Scout lets scouts record match data at competitions — no internet require
 
 | Tab | What it does |
 |---|---|
-| **My Schedule** | Team 751's upcoming matches with live Nexus queue status (queuing / on deck / on field) |
+| **My Schedule** | Team 751's upcoming matches with match outcome prediction and live Nexus queue status (queuing / on deck / on field) |
 | **Schedules** | Full event schedule — all teams, upcoming matches only, 751's matches highlighted |
 | **Teams** | Nexus pit map — team pit locations by row and slot |
 | **Records** | Saved scouting records — tap to view QR, swipe to delete your own |
 | **Past Matches** *(optional)* | Played matches from the most recent competition — Mine tab and All tab |
 
 **Settings**
-- Scouter name (persists across sessions, pre-fills new record dialogs)
+- Scouter name (persists across sessions, pre-fills new record dialogs; this is kept private and locally stored on the users phone)
 - Light / Dark / System theme
 - Event key override (skip auto-detection)
 - Enable/disable the Past Matches tab
 
 **QR sync**
+- The QR sync feature allows scouters to share intformation when they don't have access to wifi or cell service,
 - Tap any record → full-screen QR code
 - Tap the scanner icon → scan another phone's QR → record imported instantly
 - UUID deduplication prevents double imports
@@ -142,7 +143,28 @@ Isar cannot store `Map<String, dynamic>` directly — the pattern everywhere is 
 
 ---
 
+## Security
+
+**Security review status:** No exploitable vulnerabilities identified (reviewed June 2026).
+
+### Key security properties
+
+| Property | Implementation |
+|---|---|
+| **API keys** | `app_config.dart` is gitignored and never committed. Both keys (TBA, Nexus) grant read-only access to public FRC competition data — no PII, no write access. |
+| **Local data** | All scouting records stay on-device in Isar. No data leaves the device without an explicit QR export or future Supabase sync. |
+| **QR imports** | Scanned records are validated (UUID, match key, team number formats) before being written to Isar. Phase data maps are accepted from QR payloads; input should be validated against `kDefaultGameConfig` field keys and types before saving to guard against malformed imports. |
+| **No auth surface** | The app has no login, no server, and no multi-user backend. There is no authentication or session management to exploit. |
+| **Network** | All HTTP calls go to `thebluealliance.com` (TBA API v3) or `frc.nexus` (Nexus API v1). Both hosts are hardcoded — user input can only affect the URL path (event key), not the host or protocol. |
+| **Settings** | User preferences are stored as a plain JSON file in the app's sandboxed support directory via `SettingsRepository`. |
+
+### Threat model
+
+Barn2Scout is an **internal team tool** distributed via TestFlight or direct sideload to a known set of team members. It is not a public app. The primary risk surface is the QR scan flow, where a malicious QR code constructed by someone with physical access could import a corrupt record — validate QR payloads against `kDefaultGameConfig` to close this.
+
+---
+
 ## Team
 
 Built and maintained by **Lucas Walker** — FTC/FRC software lead, Woodside Priory School.  
-GitHub: [lucasgruwez](https://github.com/lucasgruwez)
+GitHub: [lasersushi](https://github.com/lasersushi)
