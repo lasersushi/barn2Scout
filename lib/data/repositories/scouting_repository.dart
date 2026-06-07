@@ -31,6 +31,11 @@ class ScoutingRepository {
       .findAll();
 
   /// Records not yet pushed to Supabase — i.e. the offline sync queue.
+  Future<Set<String>> getAllUuids() async {
+    final all = await _records.where().uuidProperty().findAll();
+    return all.toSet();
+  }
+
   Future<List<ScoutingRecord>> getUnsynced() =>
       _records.filter().syncedEqualTo(false).findAll();
 

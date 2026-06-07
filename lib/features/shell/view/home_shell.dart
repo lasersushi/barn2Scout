@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../data/repositories/schedule_repository.dart';
+import '../../../data/repositories/sync_repository.dart';
 import '../../records/view/records_page.dart';
 import '../../schedule/cubit/schedule_cubit.dart';
 import '../../schedule/view/barn2_schedule_page.dart';
@@ -9,6 +10,7 @@ import '../../schedule/view/other_team_schedules_page.dart';
 import '../../schedule/view/past_matches_page.dart';
 import '../../settings/cubit/settings_cubit.dart';
 import '../../settings/view/settings_page.dart';
+import '../../sync/cubit/sync_cubit.dart';
 import '../../teams/view/teams_page.dart';
 import '../cubit/navigation_cubit.dart';
 
@@ -71,6 +73,12 @@ class HomeShell extends StatelessWidget {
         BlocProvider(
           create: (ctx) => ScheduleCubit(ctx.read<ScheduleRepository>()),
         ),
+        BlocProvider(
+          create: (ctx) => SyncCubit(
+            ctx.read<SyncRepository>(),
+            ctx.read<ScheduleRepository>(),
+          )..syncNow(),
+        ),
       ],
       child: BlocBuilder<SettingsCubit, SettingsState>(
         buildWhen: (prev, curr) =>
@@ -81,7 +89,6 @@ class HomeShell extends StatelessWidget {
 
           return BlocBuilder<NavigationCubit, int>(
             builder: (context, rawIndex) {
-              // Clamp so toggling the tab off while viewing it lands gracefully.
               final index = rawIndex.clamp(0, pages.length - 1);
 
               return Scaffold(

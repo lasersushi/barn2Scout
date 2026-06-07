@@ -6,6 +6,7 @@ import '../../../data/models/scouting_record.dart';
 import '../../../data/repositories/scouting_repository.dart';
 import '../../scouting/view/scouting_form_page.dart';
 import '../../settings/cubit/settings_cubit.dart';
+import '../../sync/cubit/sync_cubit.dart';
 import '../cubit/records_cubit.dart';
 import '../widgets/new_record_dialog.dart';
 import 'qr_scan_page.dart';
@@ -33,6 +34,29 @@ class _RecordsView extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Records'),
         actions: [
+          BlocBuilder<SyncCubit, SyncState>(
+            builder: (context, sync) {
+              if (sync is SyncInProgress) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                );
+              }
+              return IconButton(
+                icon: Icon(
+                  sync is SyncError
+                      ? Icons.sync_problem_outlined
+                      : Icons.sync_outlined,
+                ),
+                tooltip: 'Sync with cloud',
+                onPressed: () => context.read<SyncCubit>().syncNow(),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
             tooltip: 'Scan QR code',
