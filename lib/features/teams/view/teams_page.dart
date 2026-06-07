@@ -9,6 +9,7 @@ import '../cubit/picklist_cubit.dart';
 import '../cubit/ratings_cubit.dart';
 import '../cubit/teams_cubit.dart';
 import 'picklist_page.dart';
+import 'rankings_tab.dart';
 
 class TeamsPage extends StatefulWidget {
   const TeamsPage({super.key});
@@ -24,7 +25,7 @@ class _TeamsPageState extends State<TeamsPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -75,6 +76,7 @@ class _TeamsView extends StatelessWidget {
             bottom: TabBar(
               controller: tab,
               tabs: const [
+                Tab(text: 'Rankings'),
                 Tab(text: 'Pit Map'),
                 Tab(text: 'Picklist'),
               ],
@@ -83,6 +85,8 @@ class _TeamsView extends StatelessWidget {
           body: TabBarView(
             controller: tab,
             children: [
+              // ── Rankings ─────────────────────────────────────────────────
+              const RankingsTab(),
               // ── Pit Map ─────────────────────────────────────────────────
               switch (state) {
                 TeamsInitial() || TeamsLoading() =>

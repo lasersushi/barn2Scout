@@ -10,6 +10,9 @@ class TeamRating {
     required this.ccwm,
     this.avgRp,
     this.winRate,
+    this.wins,
+    this.losses,
+    this.ties,
     this.rank,
     this.scoreMean,
     this.scoreStd,
@@ -35,6 +38,11 @@ class TeamRating {
   /// Win fraction from the team's W-L-T record, if available.
   final double? winRate;
 
+  /// Official W-L-T from TBA rankings, if available.
+  final int? wins;
+  final int? losses;
+  final int? ties;
+
   /// Current event rank, if ranked yet.
   final int? rank;
 
@@ -47,4 +55,10 @@ class TeamRating {
 
   /// How many played matches fed [scoreMean] / [scoreStd].
   final int matchesPlayed;
+
+  /// W-L-T formatted as "8-2-0", or null if record not yet available.
+  String? get record {
+    if (wins == null || losses == null || ties == null) return null;
+    return '$wins-$losses-$ties';
+  }
 }

@@ -167,7 +167,7 @@ class ScheduleRepository {
     final ccwms = (oprData['ccwms'] as Map?)?.cast<String, dynamic>() ?? {};
 
     // 2 — rankings (optional; OPR-only prediction still works without it).
-    final ranks = <int, ({int rank, double? avgRp, double? winRate})>{};
+    final ranks = <int, ({int rank, double? avgRp, double? winRate, int? wins, int? losses, int? ties})>{};
     try {
       final rData =
           await tba.get('/event/$eventKey/rankings') as Map<String, dynamic>;
@@ -191,6 +191,9 @@ class ScheduleRepository {
           rank: (raw['rank'] as num?)?.toInt() ?? 0,
           avgRp: avgRp,
           winRate: winRate,
+          wins: (record?['wins'] as num?)?.toInt(),
+          losses: (record?['losses'] as num?)?.toInt(),
+          ties: (record?['ties'] as num?)?.toInt(),
         );
       }
     } catch (_) {
@@ -228,6 +231,9 @@ class ScheduleRepository {
         ccwm: (ccwms[entry.key] as num?)?.toDouble() ?? 0,
         avgRp: r?.avgRp,
         winRate: r?.winRate,
+        wins: r?.wins,
+        losses: r?.losses,
+        ties: r?.ties,
         rank: r?.rank,
         scoreMean: stats.mean,
         scoreStd: stats.std,
