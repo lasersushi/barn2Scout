@@ -2,7 +2,7 @@
 
 **FRC Team 751 · Offline-first match scouting for iOS and Android**
 
-Barn2Scout is a custom built in-house scouting solution for Barn 2 robotics. While it is currently under alpha testing, releasing it to the general public under beta prerelease is being considred.
+Barn2Scout is a custom built in-house scouting solution for Barn 2 robotics.
 
 ---
 

@@ -1,6 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../data/models/pit_scouting_record.dart';
+import '../../../data/models/scouting_record.dart';
+import '../../../data/repositories/pit_scouting_repository.dart';
 import '../../../data/repositories/schedule_repository.dart';
+import '../../../data/repositories/scouting_repository.dart';
 import '../../../data/repositories/sync_repository.dart';
 
 sealed class SyncState {
@@ -25,11 +31,45 @@ class SyncError extends SyncState {
 }
 
 class SyncCubit extends Cubit<SyncState> {
-  SyncCubit(this._sync, this._schedule) : super(const SyncIdle());
+  SyncCubit(this._sync, this._schedule, this._scouting, this._pitScouting)
+      : super(const SyncIdle()) {
+    _startPeriodicPull();
+    _watchForNewRecords();
+    _watchForNewPitRecords();
+  }
 
   final SyncRepository _sync;
   final ScheduleRepository _schedule;
+  final ScoutingRepository _scouting;
+  final PitScoutingRepository _pitScouting;
 
+  Timer? _pullTimer;
+  StreamSubscription<List<ScoutingRecord>>? _recordSub;
+  StreamSubscription<List<PitScoutingRecord>>? _pitRecordSub;
+  int _lastUnsyncedCount = 0;
+  int _lastUnsyncedPitCount = 0;
+
+  void _startPeriodicPull() {
+    _pullTimer = Timer.periodic(const Duration(minutes: 1), (_) => _pullOnly());
+  }
+
+  void _watchForNewRecords() {
+    _recordSub = _scouting.watchAll().listen((records) {
+      final unsyncedCount = records.where((r) => !r.synced).length;
+      if (unsyncedCount > _lastUnsyncedCount) _pushOnly();
+      _lastUnsyncedCount = unsyncedCount;
+    });
+  }
+
+  void _watchForNewPitRecords() {
+    _pitRecordSub = _pitScouting.watchAll().listen((records) {
+      final unsyncedCount = records.where((r) => !r.synced).length;
+      if (unsyncedCount > _lastUnsyncedPitCount) _pushPitOnly();
+      _lastUnsyncedPitCount = unsyncedCount;
+    });
+  }
+
+  /// Full sync (push + pull records and picklists).
   Future<void> syncNow() async {
     if (state is SyncInProgress) return;
     emit(const SyncInProgress());
@@ -40,5 +80,34 @@ class SyncCubit extends Cubit<SyncState> {
     } catch (e) {
       emit(SyncError(e.toString()));
     }
+  }
+
+  Future<void> _pushOnly() async {
+    try {
+      await _sync.pushRecords();
+    } catch (_) {}
+  }
+
+  Future<void> _pushPitOnly() async {
+    try {
+      await _sync.pushPitRecords();
+    } catch (_) {}
+  }
+
+  Future<void> _pullOnly() async {
+    try {
+      final detected = await _schedule.detectCurrentEvent();
+      await _sync.pullRecords(detected.key);
+      await _sync.pullPitRecords(detected.key);
+      await _sync.pullPicklists();
+    } catch (_) {}
+  }
+
+  @override
+  Future<void> close() {
+    _pullTimer?.cancel();
+    _recordSub?.cancel();
+    _pitRecordSub?.cancel();
+    return super.close();
   }
 }

@@ -7,7 +7,9 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Barn2scout</string>
+	<string>Barn2Scout</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Barn2Scout uses the camera to scan QR codes for sharing scouting records.</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>

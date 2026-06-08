@@ -18,14 +18,35 @@ const List<FieldConfig> kDefaultGameConfig = [
     type: FieldType.toggle,
   ),
   FieldConfig(
-    key: 'auto_rating',
-    label: 'Auto Performance',
+    key: 'auto_scored_l1',
+    label: 'Scored — Level 1',
     phase: ScoutPhase.auto,
+    type: FieldType.counter,
+    min: 0,
+  ),
+  FieldConfig(
+    key: 'auto_scored_l2',
+    label: 'Scored — Level 2',
+    phase: ScoutPhase.auto,
+    type: FieldType.counter,
+    min: 0,
+  ),
+
+  // -------------------------------------------------------------- TELEOP ----
+  FieldConfig(
+    key: 'teleop_scored_l1',
+    label: 'Scored — Level 1',
+    phase: ScoutPhase.teleop,
     type: FieldType.rating,
     min: 0,
-    max: 5,
-    ),
-  // -------------------------------------------------------------- TELEOP ----
+  ),
+  FieldConfig(
+    key: 'teleop_scored_l2',
+    label: 'Scored — Level 2',
+    phase: ScoutPhase.teleop,
+    type: FieldType.counter,
+    min: 0,
+  ),
   FieldConfig(
     key: 'teleop_defense',
     label: 'Defense Played',
@@ -35,26 +56,24 @@ const List<FieldConfig> kDefaultGameConfig = [
     max: 5,
   ),
   FieldConfig(
-    key: 'teleop_defense',
-    label: 'Defense Played',
+    key: 'teleop_notes',
+    label: 'Teleop Observations',
     phase: ScoutPhase.teleop,
-    type: FieldType.rating,
-    min: 0,
-    max: 5,
+    type: FieldType.text,
   ),
   // ------------------------------------------------------------- ENDGAME ----
   FieldConfig(
     key: 'endgame_climb',
-    label: 'Climb',
+    label: 'Climb Result',
     phase: ScoutPhase.endgame,
     type: FieldType.choice,
     options: ['L1', 'L2', 'L3', 'None'],
   ),
   FieldConfig(
-    key: 'endgame_climb_time',
-    label: 'Climb Time',
+    key: 'endgame_notes',
+    label: 'Endgame Observations',
     phase: ScoutPhase.endgame,
-    type: FieldType.stopwatch,
+    type: FieldType.text,
   ),
 ];
 

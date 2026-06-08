@@ -73,7 +73,7 @@ class _LoginPageState extends State<LoginPage> {
                           ?.copyWith(fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      'FRC Team 751',
+                      'FRC Team 751: Barn2 Robotics',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: cs.onSurfaceVariant),
                     ),
