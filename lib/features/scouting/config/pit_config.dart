@@ -98,7 +98,7 @@ FieldConfig(
   ),
   FieldConfig(
     key: 'pit_auto_swipes',
-    label: 'How many swipes in the nuetral zone?',
+    label: 'How many swipes in the nuetral zone during auto?',
     phase: ScoutPhase.auto,
     type: FieldType.rating,
     section: 'Software',
@@ -107,7 +107,7 @@ FieldConfig(
   ),
   FieldConfig(
     key: 'pit_vision_setup',
-    label: 'Vision setup',
+    label: 'What is their vision setup?',
     phase: ScoutPhase.auto,
     type: FieldType.text,
     section: 'Software',
