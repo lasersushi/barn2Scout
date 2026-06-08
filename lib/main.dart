@@ -7,6 +7,7 @@ import 'core/config/app_config.dart';
 import 'data/repositories/event_repository.dart';
 import 'data/repositories/match_repository.dart';
 import 'data/repositories/picklist_repository.dart';
+import 'data/repositories/pit_scouting_repository.dart';
 import 'data/repositories/schedule_repository.dart';
 import 'data/repositories/scouting_repository.dart';
 import 'data/repositories/settings_repository.dart';
@@ -44,10 +45,12 @@ Future<void> main() async {
         RepositoryProvider.value(value: settingsRepo),
         RepositoryProvider.value(value: picklistRepo),
         RepositoryProvider(create: (_) => ScoutingRepository(isar)),
+        RepositoryProvider(create: (_) => PitScoutingRepository(isar)),
         RepositoryProvider(
           create: (ctx) => SyncRepository(
             ctx.read<ScoutingRepository>(),
             ctx.read<PicklistRepository>(),
+            ctx.read<PitScoutingRepository>(),
           ),
         ),
         RepositoryProvider(create: (_) => TeamRepository(isar)),

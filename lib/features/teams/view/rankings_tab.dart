@@ -198,11 +198,11 @@ class _NoEventState extends StatelessWidget {
             Icon(Icons.event_busy_outlined,
                 size: 48, color: cs.onSurfaceVariant),
             const SizedBox(height: 12),
-            const Text('No upcoming competitions.',
+            const Text('No ongoing competitions.',
                 style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
             Text(
-              'Rankings will appear here once your\nnext event is on TBA.',
+              'Rankings will appear here once your\n event is on TBA.',
               textAlign: TextAlign.center,
               style: TextStyle(color: cs.onSurfaceVariant),
             ),

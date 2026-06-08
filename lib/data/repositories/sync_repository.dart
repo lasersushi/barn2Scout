@@ -1,20 +1,24 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/picklist.dart';
+import '../models/pit_scouting_record.dart';
 import '../models/scouting_record.dart';
 import 'picklist_repository.dart';
+import 'pit_scouting_repository.dart';
 import 'scouting_repository.dart';
 
 /// Bidirectional sync between local storage and Supabase.
 ///
-/// Scouting records: push unsynced → Supabase; pull new by event key.
+/// Match records: push unsynced → Supabase; pull new by event key.
+/// Pit records: same pattern, separate table.
 /// Picklists: push all local → Supabase (upsert); pull all remote and merge
 /// (remote wins when updatedAt is newer).
 class SyncRepository {
-  SyncRepository(this._scouting, this._picklists);
+  SyncRepository(this._scouting, this._picklists, this._pitScouting);
 
   final ScoutingRepository _scouting;
   final PicklistRepository _picklists;
+  final PitScoutingRepository _pitScouting;
   final _client = Supabase.instance.client;
 
   bool get _authenticated => _client.auth.currentUser != null;
@@ -25,6 +29,8 @@ class SyncRepository {
     if (!_authenticated) return;
     await pushRecords();
     await pullRecords(eventKey);
+    await pushPitRecords();
+    await pullPitRecords(eventKey);
     await pushPicklists();
     await pullPicklists();
   }
@@ -84,6 +90,58 @@ class SyncRepository {
         synced: true,
       );
       await _scouting.save(record);
+    }
+  }
+
+  // ── Pit scouting records ──────────────────────────────────────────────────
+
+  Future<void> pushPitRecords() async {
+    if (!_authenticated) return;
+    final unsynced = await _pitScouting.getUnsynced();
+    if (unsynced.isEmpty) return;
+    final userId = _client.auth.currentUser!.id;
+
+    final rows = unsynced
+        .map((r) => {
+              'id': r.uuid,
+              'user_id': userId,
+              'team_number': r.teamNumber,
+              'event_key': r.eventKey,
+              'scouter_name': r.scouterName,
+              'timestamp': r.timestamp.toUtc().toIso8601String(),
+              'pit_data': r.pitData,
+              'notes': r.notes,
+            })
+        .toList();
+
+    await _client.from('pit_scouting_records').upsert(rows);
+    await _pitScouting.markSynced(unsynced.map((r) => r.uuid));
+  }
+
+  Future<void> pullPitRecords(String eventKey) async {
+    if (!_authenticated) return;
+    final rows = await _client
+        .from('pit_scouting_records')
+        .select()
+        .eq('event_key', eventKey) as List<dynamic>;
+
+    final existing = await _pitScouting.getAllUuids();
+
+    for (final raw in rows.cast<Map<String, dynamic>>()) {
+      final uuid = raw['id'] as String;
+      if (existing.contains(uuid)) continue;
+
+      final record = PitScoutingRecord.create(
+        uuid: uuid,
+        teamNumber: (raw['team_number'] as num).toInt(),
+        eventKey: raw['event_key'] as String,
+        scouterName: (raw['scouter_name'] as String?) ?? '',
+        timestamp: DateTime.parse(raw['timestamp'] as String).toLocal(),
+        pitData: (raw['pit_data'] as Map<String, dynamic>?) ?? {},
+        notes: (raw['notes'] as String?) ?? '',
+        synced: true,
+      );
+      await _pitScouting.save(record);
     }
   }
 
