@@ -1,8 +1,8 @@
 # Barn2Scout
 
-**FRC Team 751 · Offline-first scouting for iOS and Android**
+**FRC Team 751 · Offline-first match scouting for iOS and Android**
 
-Barn2Scout is a custom in-house scouting app for Barn 2 Robotics. Scouts record qualitative match observations and pit data at competitions — no internet required. QR codes sync records between phones when WiFi is unavailable, and a Supabase backend syncs everything to the cloud when connectivity is restored.
+Barn2Scout is a custom built in-house scouting solution for Barn 2 robotics.
 
 ---
 
@@ -10,32 +10,23 @@ Barn2Scout is a custom in-house scouting app for Barn 2 Robotics. Scouts record 
 
 | Tab | What it does |
 |---|---|
-| **My Schedule** | Team 751's upcoming matches with win-probability predictions and live Nexus queue status (queuing / on deck / on field) |
-| **Schedules** | Full event schedule for all teams, upcoming matches only, 751's matches highlighted |
-| **Teams** | Three sub-tabs: live TBA **Rankings** (W-L-T, OPR, RP), Nexus **Pit Map**, and **Picklist** |
-| **Records** | Saved scouting records — two tabs: **Match** and **Pit**. Tap to view details, swipe to delete your own |
-| **Settings** | Preferences, account, sync status |
-| **Past Matches** *(optional)* | Played matches from the most recent event — enabled in Settings |
+| **My Schedule** | Team 751's upcoming matches with match outcome prediction and live Nexus queue status (queuing / on deck / on field) |
+| **Schedules** | Full event schedule — all teams, upcoming matches only, 751's matches highlighted |
+| **Teams** | Nexus pit map — team pit locations by row and slot |
+| **Records** | Saved scouting records — tap to view QR, swipe to delete your own |
+| **Past Matches** *(optional)* | Played matches from the most recent competition — Mine tab and All tab |
 
-**Match scouting** captures what TBA can't: driver skill, defense effectiveness, qualitative observations per phase. TBA provides all objective metrics (OPR, DPR, CCWM, scores, rankings) — scouts never enter numbers.
+**Settings**
+- Scouter name (persists across sessions, pre-fills new record dialogs; this is kept private and locally stored on the users phone)
+- Light / Dark / System theme
+- Event key override (skip auto-detection)
+- Enable/disable the Past Matches tab
 
-**Pit scouting** captures robot hardware: drivetrain type, weight, dimensions, auto capabilities, and observations.
-
-**QR sync** — share records peer-to-peer without WiFi:
+**QR sync**
+- The QR sync feature allows scouters to share intformation when they don't have access to wifi or cell service,
 - Tap any record → full-screen QR code
 - Tap the scanner icon → scan another phone's QR → record imported instantly
 - UUID deduplication prevents double imports
-
-**Cloud sync** — automatic Supabase sync:
-- Full sync on app open
-- Auto-push whenever a new record is saved
-- Periodic pull every 60 seconds
-- Manual sync button in the Records tab
-
-**Auth** — restricted to `@priorypanther.com` accounts:
-- Sign in required on every cold start
-- Automatic sign-out after 2 hours of inactivity
-- Password change with re-authentication
 
 ---
 
@@ -43,11 +34,10 @@ Barn2Scout is a custom in-house scouting app for Barn 2 Robotics. Scouts record 
 
 | Layer | Library |
 |---|---|
-| UI | Flutter 3.44 / Dart 3.12, Material 3 |
-| State | `flutter_bloc` 9.1 — Bloc for FSMs, Cubit everywhere else |
+| UI | Flutter 3.44 / Dart 3.12 |
+| State | `flutter_bloc` 9.1 — Bloc for complex FSMs, Cubit for simple state |
 | Local DB | `isar_community` 3.3.2 (Isar v3 API, Dart 3.12 compatible) |
-| Cloud | Supabase (auth + sync) |
-| HTTP | `http` + TBA API v3 + Nexus API v1 |
+| HTTP | `http` + TBA API + Nexus API |
 | QR | `qr_flutter` (generation) + `mobile_scanner` (camera) |
 | Settings | `path_provider` + JSON file |
 
@@ -57,90 +47,61 @@ Barn2Scout is a custom in-house scouting app for Barn 2 Robotics. Scouts record 
 
 ```
 lib/
-  main.dart              # Boots Isar + Supabase, injects repos, reads settings before runApp
-  app.dart               # MaterialApp + AuthCubit — shows LoginPage or HomeShell
+  main.dart              # Boots Isar, injects repositories, reads settings before runApp
+  app.dart               # MaterialApp — rebuilds only on themeMode change
   core/
-    config/app_config.dart       # API keys + Supabase credentials (gitignored)
-    theme/                       # AppTheme — seed color 0xFF2E7D32 (Team 751 green)
-    utils/                       # stats_utils (normalCdf), qr_record_codec
+    config/app_config.dart       # API keys + team identity (gitignored)
+    theme/app_theme.dart         # Barn2 blue seed color (#0060A7)
+    utils/qr_record_codec.dart   # QR encode/decode
   data/
-    models/              # Isar @collection classes (ScoutingRecord, PitScoutingRecord, ...) + value types
-    services/            # IsarService, TbaService, NexusService
-    repositories/        # All repos — ScheduleRepository is the most complex
+    models/              # Isar @collection classes + TBA/Nexus PODOs
+    services/            # TbaService, NexusService (HTTP clients)
+    repositories/        # ScoutingRepository, ScheduleRepository, SettingsRepository, TeamRepository
   features/
-    auth/                # AuthCubit + LoginPage (@priorypanther.com only)
-    shell/               # HomeShell (IndexedStack tabs), NavigationCubit, inactivity observer
-    scouting/            # Match form (Bloc FSM) + Pit form (Cubit) + FieldConfig system
-    records/             # Match/Pit TabBar, QR export/import
-    schedule/            # My Schedule, Schedules, Past Matches + ScheduleCubit
-    teams/               # Rankings, Pit Map, Picklist sub-tabs
-    sync/                # SyncCubit — periodic pull + auto-push on new record
-    settings/            # Preferences + account section
+    shell/               # HomeShell — IndexedStack nav, dynamic tab list
+    scouting/            # Match scouting form (strict FSM: auto → teleop → endgame → review)
+    records/             # Saved records list, QR export/import, delete
+    schedule/            # My Schedule, Schedules, Past Matches pages + ScheduleCubit
+    teams/               # Pit map (Nexus)
+    settings/            # Settings page + SettingsCubit
 ```
 
-**Data flow rule:** UI and Blocs talk only to repositories — never directly to Isar, Supabase, TBA, or Nexus.
-
-**Rankings / analytics rule:** All objective metrics (OPR, DPR, CCWM, scores, W-L-T) come from TBA only. Human scouting data is qualitative and never feeds rankings or predictions.
+**Data flow rule:** UI and Blocs talk only to repositories — never directly to Isar, TBA, or Nexus.
 
 ---
 
-## Scouting Forms
+## Scouting Form
 
-### Match form
-
-A strict finite-state machine — phases advance and revert by index ±1 only:
+The form is a strict finite-state machine. Phase order is defined by declaration order in `FormPhase` — the bloc advances/reverts by index ±1 only:
 
 ```
 auto → teleop → endgame → review → saved
 ```
 
-Fields (qualitative only — TBA handles scores):
+All field values live in a flat `Map<String, Object?> values` during editing, then split into per-phase JSON at save time.
 
-| Phase | Field | Type |
-|---|---|---|
-| Auto | Left starting line | Toggle |
-| Auto | Auto observations | Text |
-| Teleop | Defense effectiveness | 0–5 rating |
-| Teleop | Driver skill | 0–5 rating |
-| Teleop | Teleop observations | Text |
-| Endgame | Climb result | Choice (None / Park / Shallow / Deep) |
-| Endgame | Endgame observations | Text |
-
-**To update fields each January:** edit only `lib/features/scouting/config/game_config.dart`. No DB migration — phase data is stored as opaque JSON.
-
-### Pit form
-
-Single scrollable page grouped by section (Hardware / Auto Capabilities / Observations). Uses the same `FieldConfig` + `FieldInput` system as the match form.
-
-| Section | Field | Type |
-|---|---|---|
-| Hardware | Drivetrain | Choice (Swerve / Tank / Mecanum / Other) |
-| Hardware | Weight (lbs) | Counter |
-| Hardware | Width / Length (in) | Counter |
-| Auto | Leaves line, Scores L1/L2 | Toggles |
-| Observations | Notes | Text |
+**To update fields for a new season:** edit only `lib/features/scouting/config/game_config.dart`. No DB migration needed — phase data is stored as opaque JSON keyed by field name.
 
 ---
 
 ## Event Detection
 
-`ScheduleRepository.detectCurrentEvent()` picks the active event automatically:
+`ScheduleRepository.detectCurrentEvent()` resolves Team 751's event automatically:
 
-1. **Active today** (start ≤ now ≤ end + 1 day)
-2. **Next upcoming** event for Team 751
-3. Hard fallback to `AppConfig.currentEventKey`
+1. **Active today** (start ≤ now ≤ end + 1 day) → title: `751 @ [event]`
+2. **Next upcoming** → title: `Next: [event]`
+3. **Most recently completed** (off-season fallback) → title: `Last: [event]`
+4. Hard fallback to `AppConfig.currentEventKey`
 
-Rankings and picklists show **upcoming/active events only** — if no upcoming event exists, the app shows "No upcoming competitions" rather than stale past-event data.
+The Past Matches tab always loads from `detectPastEvent()` — the most recently completed event — so between competitions it shows Contra Costa results even while the upcoming schedule points to the next event.
 
 ---
 
 ## Setup
 
 ### Prerequisites
-
-- Flutter 3.44+ / Dart 3.12+
+- Flutter 3.44+ with Dart 3.12+
 - Xcode (iOS) or Android Studio (Android)
-- A Supabase project with the schema below
 
 ### Config file (required, not committed)
 
@@ -156,62 +117,7 @@ class AppConfig {
   static const String tbaKey = 'YOUR_TBA_KEY';
   static const String nexusBaseUrl = 'https://frc.nexus/api/v1';
   static const String nexusKey = 'YOUR_NEXUS_KEY';
-  static const String supabaseUrl = 'YOUR_SUPABASE_URL';
-  static const String supabaseAnonKey = 'YOUR_SUPABASE_PUBLISHABLE_KEY';
 }
-```
-
-### Supabase schema
-
-```sql
--- Match scouting records
-create table scouting_records (
-  id uuid primary key,
-  user_id uuid references auth.users not null,
-  team_number int not null,
-  match_number int,
-  event_key text not null,
-  scouter_name text,
-  timestamp timestamptz,
-  auto_data jsonb,
-  teleop_data jsonb,
-  endgame_data jsonb,
-  notes text
-);
-
-alter table scouting_records enable row level security;
-create policy "authenticated read" on scouting_records for select using (auth.role() = 'authenticated');
-create policy "insert own" on scouting_records for insert with check (auth.uid() = user_id);
-
--- Pit scouting records
-create table pit_scouting_records (
-  id uuid primary key,
-  user_id uuid references auth.users not null,
-  team_number int not null,
-  event_key text not null,
-  scouter_name text,
-  timestamp timestamptz,
-  pit_data jsonb,
-  notes text
-);
-
-alter table pit_scouting_records enable row level security;
-create policy "authenticated read" on pit_scouting_records for select using (auth.role() = 'authenticated');
-create policy "insert own" on pit_scouting_records for insert with check (auth.uid() = user_id);
-
--- Picklists
-create table picklists (
-  id text primary key,
-  name text,
-  picks jsonb,
-  vetoes jsonb,
-  updated_at timestamptz
-);
-
-alter table picklists enable row level security;
-create policy "authenticated read" on picklists for select using (auth.role() = 'authenticated');
-create policy "authenticated upsert" on picklists for insert with check (auth.role() = 'authenticated');
-create policy "authenticated update" on picklists for update using (auth.role() = 'authenticated');
 ```
 
 ### Run
@@ -221,7 +127,7 @@ flutter pub get
 flutter run -d <device-id>   # list devices: flutter devices
 ```
 
-### Codegen (after editing any @collection class)
+### Regenerate Isar models after editing any @collection class
 
 ```bash
 dart run build_runner build --delete-conflicting-outputs
@@ -229,13 +135,36 @@ dart run build_runner build --delete-conflicting-outputs
 
 ---
 
+## Data
+
+Isar is the source of truth on each device. Records are marked `synced = false` until pushed. `ScoutingRepository.getUnsynced()` returns the offline queue; Supabase sync is planned but not yet implemented.
+
+Isar cannot store `Map<String, dynamic>` directly — the pattern everywhere is a JSON string field (`xyzDataJson`) with an `@ignore` typed getter/setter on top.
+
+---
+
 ## Security
 
-`app_config.dart` is gitignored. TBA and Nexus keys grant read-only access to public FRC data. Supabase RLS restricts all writes to the authenticated user's own rows; reads require a valid `@priorypanther.com` session.
+**Security review status:** No exploitable vulnerabilities identified (reviewed June 2026).
+
+### Key security properties
+
+| Property | Implementation |
+|---|---|
+| **API keys** | `app_config.dart` is gitignored and never committed. Both keys (TBA, Nexus) grant read-only access to public FRC competition data — no PII, no write access. |
+| **Local data** | All scouting records stay on-device in Isar. No data leaves the device without an explicit QR export or future Supabase sync. |
+| **QR imports** | Scanned records are validated (UUID, match key, team number formats) before being written to Isar. Phase data maps are accepted from QR payloads; input should be validated against `kDefaultGameConfig` field keys and types before saving to guard against malformed imports. |
+| **No auth surface** | The app has no login, no server, and no multi-user backend. There is no authentication or session management to exploit. |
+| **Network** | All HTTP calls go to `thebluealliance.com` (TBA API v3) or `frc.nexus` (Nexus API v1). Both hosts are hardcoded — user input can only affect the URL path (event key), not the host or protocol. |
+| **Settings** | User preferences are stored as a plain JSON file in the app's sandboxed support directory via `SettingsRepository`. |
+
+### Threat model
+
+Barn2Scout is an **internal team tool** distributed via TestFlight or direct sideload to a known set of team members. It is not a public app. The primary risk surface is the QR scan flow, where a malicious QR code constructed by someone with physical access could import a corrupt record — validate QR payloads against `kDefaultGameConfig` to close this.
 
 ---
 
 ## Team
 
-Built and maintained by **Lucas Walker** — FTC/FRC software lead, Woodside Priory School, Class of 2030.  
+Built and maintained by **Lucas Walker** — FTC/FRC software lead, Woodside Priory School.  
 GitHub: [lasersushi](https://github.com/lasersushi)
