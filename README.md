@@ -4,8 +4,6 @@
 
 Barn2Scout is a custom in-house scouting app for Barn 2 Robotics. Scouts record qualitative match observations and pit data at competitions — no internet required. QR codes sync records between phones when WiFi is unavailable, and a Supabase backend syncs everything to the cloud when connectivity is restored.
 
-Currently in alpha testing.
-
 ---
 
 ## Features
