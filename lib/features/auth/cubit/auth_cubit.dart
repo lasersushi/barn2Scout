@@ -10,8 +10,11 @@ class AuthCubit extends Cubit<AuthState> {
 
   final _client = Supabase.instance.client;
 
-  static bool _isAllowedEmail(String email) =>
-      email.trim().toLowerCase().endsWith('@priorypanther.com');
+  static bool _isAllowedEmail(String email) {
+    final lower = email.trim().toLowerCase();
+    return lower.endsWith('@priorypanther.com') ||
+        lower.endsWith('@prioryca.org');
+  }
 
   void _checkSession() {
     // Always require sign-in on cold start — stored sessions are ignored.
@@ -26,7 +29,7 @@ class AuthCubit extends Cubit<AuthState> {
 
   Future<void> signIn(String email, String password) async {
     if (!_isAllowedEmail(email)) {
-      emit(const AuthError('Only @priorypanther.com accounts are allowed.'));
+      emit(const AuthError('Only @priorypanther.com or @prioryca.org accounts are allowed.'));
       return;
     }
     emit(const AuthLoading());
@@ -50,7 +53,7 @@ class AuthCubit extends Cubit<AuthState> {
 
   Future<void> signUp(String email, String password) async {
     if (!_isAllowedEmail(email)) {
-      emit(const AuthError('Only @priorypanther.com accounts are allowed.'));
+      emit(const AuthError('Only @priorypanther.com or @prioryca.org accounts are allowed.'));
       return;
     }
     emit(const AuthLoading());
