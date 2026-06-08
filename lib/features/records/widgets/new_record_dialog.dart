@@ -4,7 +4,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../data/repositories/schedule_repository.dart';
 import '../../../features/settings/cubit/settings_cubit.dart';
 
-/// What [NewRecordDialog] returns when the user starts a record.
 class NewRecordRequest {
   const NewRecordRequest({
     required this.teamNumber,
@@ -21,9 +20,11 @@ class NewRecordRequest {
   final bool isMatch;
 }
 
-/// Quick manual entry to start a scouting record.
 class NewRecordDialog extends StatefulWidget {
-  const NewRecordDialog({super.key});
+  /// [isPit] pre-selects pit mode and hides the match number field.
+  const NewRecordDialog({super.key, this.isPit = false});
+
+  final bool isPit;
 
   @override
   State<NewRecordDialog> createState() => _NewRecordDialogState();
@@ -35,15 +36,14 @@ class _NewRecordDialogState extends State<NewRecordDialog> {
   final _match = TextEditingController();
   late final TextEditingController _scouter;
   late final String _eventKey;
-  bool _isMatch = true;
+  late bool _isMatch;
 
   @override
   void initState() {
     super.initState();
+    _isMatch = !widget.isPit;
     final settings = context.read<SettingsCubit>().state;
-    // Pre-fill scouter name from settings; still editable before submitting.
     _scouter = TextEditingController(text: settings.scouterName);
-    // Event key: settings override → auto-detected → config fallback.
     _eventKey = settings.eventKeyOverride ??
         context.read<ScheduleRepository>().resolvedEventKey;
   }
@@ -61,7 +61,7 @@ class _NewRecordDialogState extends State<NewRecordDialog> {
     Navigator.of(context).pop(
       NewRecordRequest(
         teamNumber: int.parse(_team.text.trim()),
-        matchNumber: int.parse(_match.text.trim()),
+        matchNumber: _isMatch ? int.parse(_match.text.trim()) : 0,
         eventKey: _eventKey,
         scouterName: _scouter.text.trim(),
         isMatch: _isMatch,
@@ -78,38 +78,25 @@ class _NewRecordDialogState extends State<NewRecordDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('New scouting record'),
+      title: Text(_isMatch ? 'Match scouting' : 'Pit scouting'),
       content: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            DropdownButton<bool>(
-              value: _isMatch,
-              items: [
-                DropdownMenuItem(
-                  value: true,
-                  child: Text('Match scouting'),
-                ),
-                DropdownMenuItem(
-                  value: false,
-                  child: Text('Pit scouting'),
-                ),
-              ],
-              onChanged: (value) => setState(() => _isMatch = value!),
-            ),
             TextFormField(
               controller: _team,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Team number'),
               validator: _requireInt,
             ),
-            TextFormField(
-              controller: _match,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Match number'),
-              validator: _requireInt,
-            ),
+            if (_isMatch)
+              TextFormField(
+                controller: _match,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Match number'),
+                validator: _requireInt,
+              ),
             TextFormField(
               controller: _scouter,
               textCapitalization: TextCapitalization.words,
