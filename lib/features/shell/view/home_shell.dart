@@ -113,29 +113,38 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           )..syncNow(),
         ),
       ],
-      child: BlocBuilder<SettingsCubit, SettingsState>(
-        buildWhen: (prev, curr) =>
-            prev.showPastMatchesTab != curr.showPastMatchesTab,
-        builder: (context, settings) {
-          final pages = _buildPages(settings.showPastMatchesTab);
-          final destinations = _buildDestinations(settings.showPastMatchesTab);
+      // Reload the schedule (and Past Matches) whenever the event override
+      // changes, since the pages live in a kept-alive IndexedStack and would
+      // otherwise never re-run their initial load().
+      child: BlocListener<SettingsCubit, SettingsState>(
+        listenWhen: (prev, curr) =>
+            prev.eventKeyOverride != curr.eventKeyOverride,
+        listener: (context, _) => context.read<ScheduleCubit>().load(),
+        child: BlocBuilder<SettingsCubit, SettingsState>(
+          buildWhen: (prev, curr) =>
+              prev.showPastMatchesTab != curr.showPastMatchesTab,
+          builder: (context, settings) {
+            final pages = _buildPages(settings.showPastMatchesTab);
+            final destinations =
+                _buildDestinations(settings.showPastMatchesTab);
 
-          return BlocBuilder<NavigationCubit, int>(
-            builder: (context, rawIndex) {
-              final index = rawIndex.clamp(0, pages.length - 1);
+            return BlocBuilder<NavigationCubit, int>(
+              builder: (context, rawIndex) {
+                final index = rawIndex.clamp(0, pages.length - 1);
 
-              return Scaffold(
-                body: IndexedStack(index: index, children: pages),
-                bottomNavigationBar: NavigationBar(
-                  selectedIndex: index,
-                  onDestinationSelected:
-                      context.read<NavigationCubit>().select,
-                  destinations: destinations,
-                ),
-              );
-            },
-          );
-        },
+                return Scaffold(
+                  body: IndexedStack(index: index, children: pages),
+                  bottomNavigationBar: NavigationBar(
+                    selectedIndex: index,
+                    onDestinationSelected:
+                        context.read<NavigationCubit>().select,
+                    destinations: destinations,
+                  ),
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }

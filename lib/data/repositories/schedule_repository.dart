@@ -7,6 +7,7 @@ import '../models/tba_match.dart';
 import '../models/team_rating.dart';
 import '../services/nexus_service.dart';
 import '../services/tba_service.dart';
+import 'settings_repository.dart';
 
 /// Where the detected "current" event sits relative to today.
 ///   - [active]   — happening right now
@@ -19,10 +20,15 @@ enum EventStatus { active, upcoming, past }
 /// TBA is the authority on match data. Nexus supplements with real-time status
 /// only when Team 751's event is currently active in Nexus.
 class ScheduleRepository {
-  ScheduleRepository({required this.tba, required this.nexus});
+  ScheduleRepository({
+    required this.tba,
+    required this.nexus,
+    required this.settings,
+  });
 
   final TbaService tba;
   final NexusService nexus;
+  final SettingsRepository settings;
 
   /// In-memory cache of the year's events. Fetched once, shared by both detect
   /// methods so we only hit TBA once even if both are called.
@@ -53,6 +59,17 @@ class ScheduleRepository {
   /// Returns `(key, status)` — callers use [status] to label the title:
   /// "751 @ X" (active), "Next: X" (upcoming), or "Last: X" (past).
   Future<({String key, EventStatus status})> detectCurrentEvent() async {
+    // A manual event override (Settings → Event Key Override) always wins over
+    // TBA auto-detection. Read fresh every call so changing it takes effect
+    // without an app restart, and never cached so clearing it falls straight
+    // back to auto-detection. Reported as `active` so the rankings / pit-map
+    // tabs populate even when the override points at a finished event (e.g.
+    // testing against a past competition).
+    final override = settings.eventKeyOverride;
+    if (override != null && override.isNotEmpty) {
+      return (key: override, status: EventStatus.active);
+    }
+
     if (_cachedEventKey != null) {
       return (key: _cachedEventKey!, status: _cachedStatus);
     }
@@ -104,6 +121,11 @@ class ScheduleRepository {
   /// Matches tab so it shows results from the last competition even when the
   /// upcoming schedule is pointing at the next (future) event.
   Future<String> detectPastEvent() async {
+    // Honour the manual override here too, so the Past Matches tab shows the
+    // overridden event's results instead of auto-detecting independently.
+    final override = settings.eventKeyOverride;
+    if (override != null && override.isNotEmpty) return override;
+
     if (_cachedPastEventKey != null) return _cachedPastEventKey!;
 
     final events = await _fetchEvents();

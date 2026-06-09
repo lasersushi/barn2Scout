@@ -57,9 +57,10 @@ Future<void> main() async {
         RepositoryProvider(create: (_) => MatchRepository(isar)),
         RepositoryProvider(create: (_) => EventRepository(isar)),
         RepositoryProvider(
-          create: (_) => ScheduleRepository(
+          create: (ctx) => ScheduleRepository(
             tba: TbaService(),
             nexus: NexusService(),
+            settings: ctx.read<SettingsRepository>(),
           ),
         ),
       ],
