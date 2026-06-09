@@ -53,7 +53,7 @@ class AuthCubit extends Cubit<AuthState> {
 
   Future<void> signUp(String email, String password) async {
     if (!_isAllowedEmail(email)) {
-      emit(const AuthError('Only @priorypanther.com or @prioryca.org accounts are allowed.'));
+      emit(const AuthError('Only @priorypanther.com or @prioryca.org accounts are allowed. If you are a mentor, please ask Lucas for assitance with signing in.'));
       return;
     }
     emit(const AuthLoading());
