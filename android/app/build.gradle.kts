@@ -43,6 +43,13 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            // R8 shrinking strips ML Kit's barcode-scanner registration,
+            // which crashes the QR scan page with a null-reference error in
+            // release builds only (debug builds skip R8, so emulator testing
+            // misses it). Reproduce before re-enabling: open the scan page in
+            // a release build.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
