@@ -44,6 +44,7 @@ class _AuthGate extends StatelessWidget {
         AuthUnauthenticated() || AuthError() => const LoginPage(),
         AuthAuthenticated() => const HomeShell(),
         AuthAuthenticatedAdmin() => const AdminShell(),
+        AuthAuthenticatedSuperAdmin() => const AdminShell(),
       },
     );
   }

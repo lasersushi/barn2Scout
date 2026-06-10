@@ -140,11 +140,58 @@ class SettingsPage extends StatelessWidget {
                 title: const Text('Sign out'),
                 onTap: () => context.read<AuthCubit>().signOut(),
               ),
+              ListTile(
+                leading: Icon(Icons.delete_forever,
+                    color: Theme.of(context).colorScheme.error),
+                title: Text(
+                  'Delete account',
+                  style:
+                      TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () => _deleteAccount(context),
+              ),
             ],
           );
         },
       ),
     );
+  }
+
+  Future<void> _deleteAccount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This permanently deletes your Barn2Scout account. '
+          'Your scouting records will remain on the server for the team.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final error = await context.read<AuthCubit>().deleteAccount();
+    if (error != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
   }
 
   Future<void> _changePassword(BuildContext context) async {

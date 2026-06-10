@@ -22,6 +22,11 @@ class AuthAuthenticatedAdmin extends AuthState {
   final String email;
 }
 
+class AuthAuthenticatedSuperAdmin extends AuthState {
+  const AuthAuthenticatedSuperAdmin(this.email);
+  final String email;
+}
+
 class AuthUnauthenticated extends AuthState {
   const AuthUnauthenticated();
 }

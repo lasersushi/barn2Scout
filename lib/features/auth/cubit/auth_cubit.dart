@@ -10,14 +10,30 @@ class AuthCubit extends Cubit<AuthState> {
 
   final _client = Supabase.instance.client;
 
+  static const _adminEmails = {
+    'cstinson29@priorypanther.com',
+    'smunoz27@priorypanther.com',
+    'asudhof29@priorypanther.com',
+  };
+  static const _superAdminEmails = {
+    'lwalker30@priorypanther.com',
+    'tom.mandle@gmail.com',
+    'jstinson1@yahoo.com',
+  };
+
   static bool _isAllowedEmail(String email) {
     final lower = email.trim().toLowerCase();
     return lower.endsWith('@priorypanther.com');
   }
 
-  static bool _isTeacherEmail(String email) {
+  static bool _isMentorEmail(String email) {
     final lower = email.trim().toLowerCase();
-    return lower.endsWith('@prioryca.org');
+    return _adminEmails.contains(lower);
+  }
+
+  static bool _isSuperAdminEmail(String email) {
+    final lower = email.trim().toLowerCase();
+    return _superAdminEmails.contains(lower) || lower.endsWith('@prioryca.org');
   }
 
   void _checkSession() {
@@ -32,10 +48,10 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   Future<void> signIn(String email, String password) async {
-    if (!_isAllowedEmail(email) && !_isTeacherEmail(email)) {
+    if (!_isAllowedEmail(email) && !_isMentorEmail(email) && !_isSuperAdminEmail(email)) {
       emit(
         const AuthError(
-          'Only @priorypanther.com or @prioryca.org accounts are allowed. If you are a mentor, please contact Lucas for assistance.',
+          'Only @priorypanther.com or @prioryca.org accounts are allowed.',
         ),
       );
       return;
@@ -49,7 +65,7 @@ class AuthCubit extends Cubit<AuthState> {
       final user = res.user;
       if (user != null) {
         final addr = user.email ?? '';
-        emit(_isTeacherEmail(addr)
+        emit(_isMentorEmail(addr)
             ? AuthAuthenticatedAdmin(addr)
             : AuthAuthenticated(addr));
       } else {
@@ -63,10 +79,10 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   Future<void> signUp(String email, String password) async {
-    if (!_isAllowedEmail(email) && !_isTeacherEmail(email)) {
+    if (!_isAllowedEmail(email) && !_isMentorEmail(email) && !_isSuperAdminEmail(email)) {
       emit(
         const AuthError(
-          'Only @priorypanther.com or @prioryca.org accounts are allowed. If you are a mentor, please contact Lucas for assistance.',
+          'Only @priorypanther.com or @prioryca.org accounts are allowed.',
         ),
       );
       return;
@@ -80,7 +96,7 @@ class AuthCubit extends Cubit<AuthState> {
       final user = res.user;
       if (user != null) {
         final addr = user.email ?? '';
-        emit(_isTeacherEmail(addr)
+        emit(_isMentorEmail(addr)
             ? AuthAuthenticatedAdmin(addr)
             : AuthAuthenticated(addr));
       } else {
@@ -117,5 +133,21 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> signOut() async {
     await _client.auth.signOut();
     emit(const AuthUnauthenticated());
+  }
+
+  /// Permanently deletes the signed-in user's Supabase account.
+  /// Requires the `delete_user` Postgres function to exist (see CLAUDE.md note).
+  /// Returns an error message on failure, null on success.
+  Future<String?> deleteAccount() async {
+    try {
+      await _client.rpc('delete_user');
+      await _client.auth.signOut();
+      emit(const AuthUnauthenticated());
+      return null;
+    } on AuthException catch (e) {
+      return e.message;
+    } catch (e) {
+      return 'Something went wrong. Check your connection.';
+    }
   }
 }
