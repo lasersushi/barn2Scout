@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../auth/cubit/auth_cubit.dart';
+import '../../update/cubit/update_cubit.dart';
 import '../cubit/settings_cubit.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -93,9 +94,39 @@ class SettingsPage extends StatelessWidget {
                 title: const Text('Team'),
                 trailing: Text('#${AppConfig.myTeamNumber}'),
               ),
-              const ListTile(
-                title: Text('Version'),
-                trailing: Text('1.0.0'),
+              BlocBuilder<UpdateCubit, UpdateState>(
+                builder: (context, update) {
+                  final installed = update.installed;
+                  final version = installed == null
+                      ? '…'
+                      : 'v${installed.version} (${installed.buildNumber})'
+                          '${installed.patchNumber != null ? ' · patch ${installed.patchNumber}' : ''}';
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        title: const Text('Version'),
+                        trailing: Text(version),
+                      ),
+                      ListTile(
+                        title: const Text('Check for updates'),
+                        subtitle: switch (update) {
+                          UpdateChecking() => const Text('Checking…'),
+                          UpdateUpToDate() => const Text('Up to date'),
+                          UpdateCheckFailure() =>
+                            const Text('Couldn\'t reach GitHub (offline?)'),
+                          UpdateAvailable(:final release) => Text(
+                              '${release.tagName} available — see banner above'),
+                          _ => null,
+                        },
+                        trailing: const Icon(Icons.refresh),
+                        onTap: () => context
+                            .read<UpdateCubit>()
+                            .checkForUpdate(userInitiated: true),
+                      ),
+                    ],
+                  );
+                },
               ),
 
               _SectionHeader('Account'),

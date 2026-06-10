@@ -54,6 +54,9 @@ dependencies:
   isar_community: ^3.3.2
   isar_community_flutter_libs: ^3.3.2
   mobile_scanner: ^7.2.0
+  package_info_plus: ^10.1.0
+  shorebird_code_push: ^2.0.6
+  ota_update: ^7.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
