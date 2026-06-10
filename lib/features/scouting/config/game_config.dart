@@ -18,23 +18,31 @@ const List<FieldConfig> kDefaultGameConfig = [
     type: FieldType.toggle,
   ),
   FieldConfig(
-    key: 'auto_notes',
-    label: 'Auto Observations',
-    phase: ScoutPhase.auto,
-    type: FieldType.text,
-  ),
+    key: 'auto_rating',
+    label: 'Auto Rating',
+    phase: ScoutPhase.auto, 
+    type: FieldType.rating, 
+    min: 0, 
+    max: 5
+    ),
+    FieldConfig(
+      key: 'auto_notes',
+      label: 'Auto Observations',
+      phase: ScoutPhase.auto,
+      type: FieldType.text,
+    ),
   // -------------------------------------------------------------- TELEOP ----
   FieldConfig(
     key: 'teleop_defense',
-    label: 'Defense Effectiveness',
+    label: 'Defense Played',
     phase: ScoutPhase.teleop,
     type: FieldType.rating,
     min: 0,
     max: 5,
   ),
-  FieldConfig(
-    key: 'teleop_driver_skill',
-    label: 'Driver Skill',
+    FieldConfig(
+    key: 'teleop_offense',
+    label: 'Offense Played',
     phase: ScoutPhase.teleop,
     type: FieldType.rating,
     min: 0,
@@ -52,7 +60,15 @@ const List<FieldConfig> kDefaultGameConfig = [
     label: 'Climb Result',
     phase: ScoutPhase.endgame,
     type: FieldType.choice,
-    options: ['None', 'Park', 'Shallow', 'Deep'],
+    options: ['L1', 'L2', 'L3', 'None'],
+  ),
+  FieldConfig(
+    key: 'endgame_rating',
+    label: 'Endgame Rating',
+    phase: ScoutPhase.endgame,
+    type: FieldType.rating,
+    min: 0,
+    max: 5,
   ),
   FieldConfig(
     key: 'endgame_notes',

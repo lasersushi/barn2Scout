@@ -21,6 +21,9 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        // Required by the ota_update plugin (its module enables desugaring,
+        // and AGP requires the app module to match).
+        isCoreLibraryDesugaringEnabled = true
     }
 
     signingConfigs {
@@ -43,6 +46,13 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
+            // R8 shrinking strips ML Kit's barcode-scanner registration,
+            // which crashes the QR scan page with a null-reference error in
+            // release builds only (debug builds skip R8, so emulator testing
+            // misses it). Reproduce before re-enabling: open the scan page in
+            // a release build.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
@@ -55,4 +65,8 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

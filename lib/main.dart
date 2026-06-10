@@ -13,6 +13,7 @@ import 'data/repositories/scouting_repository.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/repositories/sync_repository.dart';
 import 'data/repositories/team_repository.dart';
+import 'data/repositories/update_repository.dart';
 import 'data/services/isar_service.dart';
 import 'data/services/nexus_service.dart';
 import 'data/services/tba_service.dart';
@@ -56,10 +57,12 @@ Future<void> main() async {
         RepositoryProvider(create: (_) => TeamRepository(isar)),
         RepositoryProvider(create: (_) => MatchRepository(isar)),
         RepositoryProvider(create: (_) => EventRepository(isar)),
+        RepositoryProvider(create: (_) => UpdateRepository()),
         RepositoryProvider(
-          create: (_) => ScheduleRepository(
+          create: (ctx) => ScheduleRepository(
             tba: TbaService(),
             nexus: NexusService(),
+            settings: ctx.read<SettingsRepository>(),
           ),
         ),
       ],
