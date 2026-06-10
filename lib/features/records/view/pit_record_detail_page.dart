@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 
 import '../../../data/models/pit_scouting_record.dart';
-import '../../../data/repositories/pit_scouting_repository.dart';
+import '../../../data/repositories/sync_repository.dart';
 import '../../auth/cubit/auth_cubit.dart';
 
 class PitRecordDetailPage extends StatelessWidget {
@@ -42,8 +42,19 @@ class PitRecordDetailPage extends StatelessWidget {
       ),
     );
     if (confirmed == true && context.mounted) {
-      await context.read<PitScoutingRepository>().deleteByUuid(record.uuid);
-      if (context.mounted) Navigator.of(context).pop();
+      try {
+        await context.read<SyncRepository>().deletePitRecord(record.uuid);
+        if (context.mounted) Navigator.of(context).pop();
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Could not delete record. Are you online?'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -52,7 +63,7 @@ class PitRecordDetailPage extends StatelessWidget {
     final when =
         DateFormat('MMM d, yyyy · h:mm a').format(record.timestamp);
     final scheme = Theme.of(context).colorScheme;
-    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin;
+    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin || context.read<AuthCubit>().state is AuthAuthenticatedSuperAdmin;
 
     return Scaffold(
       appBar: AppBar(

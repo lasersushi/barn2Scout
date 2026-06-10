@@ -63,6 +63,18 @@ class SyncRepository {
     await _scouting.markSynced(unsynced.map((r) => r.uuid));
   }
 
+  /// Deletes a match record from Supabase *and* locally. Deleting locally
+  /// alone is not enough — the next [pullRecords] would re-create it from the
+  /// still-present remote row. Remote-first: if the server delete fails (e.g.
+  /// offline or unauthorized) we leave the local copy alone so the two stay
+  /// consistent. Authorization is enforced server-side in `delete_scouting_record`.
+  Future<void> deleteRecord(String uuid) async {
+    if (_authenticated) {
+      await _client.rpc('delete_scouting_record', params: {'record_id': uuid});
+    }
+    await _scouting.deleteByUuid(uuid);
+  }
+
   Future<void> pullRecords(String eventKey) async {
     if (!_authenticated) return;
     final rows = await _client
@@ -116,6 +128,14 @@ class SyncRepository {
 
     await _client.from('pit_scouting_records').upsert(rows);
     await _pitScouting.markSynced(unsynced.map((r) => r.uuid));
+  }
+
+  /// Deletes a pit record from Supabase *and* locally. See [deleteRecord].
+  Future<void> deletePitRecord(String uuid) async {
+    if (_authenticated) {
+      await _client.rpc('delete_pit_record', params: {'record_id': uuid});
+    }
+    await _pitScouting.deleteByUuid(uuid);
   }
 
   Future<void> pullPitRecords(String eventKey) async {

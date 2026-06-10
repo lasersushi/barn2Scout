@@ -6,6 +6,7 @@ import '../../../data/models/pit_scouting_record.dart';
 import '../../../data/models/scouting_record.dart';
 import '../../../data/repositories/pit_scouting_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
+import '../../../data/repositories/sync_repository.dart';
 import '../../scouting/view/pit_form_page.dart';
 import '../../scouting/view/scouting_form_page.dart';
 import '../../auth/cubit/auth_cubit.dart';
@@ -182,7 +183,7 @@ class _MatchRecordTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final when = DateFormat('MMM d · h:mm a').format(record.timestamp);
-    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin;
+    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin || context.read<AuthCubit>().state is AuthAuthenticatedSuperAdmin;
 
     final tile = ListTile(
       onTap: () => RecordDetailPage.push(context, record),
@@ -212,7 +213,7 @@ class _MatchRecordTile extends StatelessWidget {
       direction: DismissDirection.endToStart,
       confirmDismiss: (_) => _confirmDelete(context),
       onDismissed: (_) =>
-          context.read<ScoutingRepository>().deleteByUuid(record.uuid),
+          context.read<SyncRepository>().deleteRecord(record.uuid),
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
@@ -286,7 +287,7 @@ class _PitRecordTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final when = DateFormat('MMM d · h:mm a').format(record.timestamp);
-    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin;
+    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin || context.read<AuthCubit>().state is AuthAuthenticatedSuperAdmin;
 
     final tile = ListTile(
       onTap: () => PitRecordDetailPage.push(context, record),
@@ -316,7 +317,7 @@ class _PitRecordTile extends StatelessWidget {
       direction: DismissDirection.endToStart,
       confirmDismiss: (_) => _confirmDelete(context),
       onDismissed: (_) =>
-          context.read<PitScoutingRepository>().deleteByUuid(record.uuid),
+          context.read<SyncRepository>().deletePitRecord(record.uuid),
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),

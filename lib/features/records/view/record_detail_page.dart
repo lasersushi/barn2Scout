@@ -5,7 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/utils/qr_record_codec.dart';
 import '../../../data/models/scouting_record.dart';
-import '../../../data/repositories/scouting_repository.dart';
+import '../../../data/repositories/sync_repository.dart';
 import '../../auth/cubit/auth_cubit.dart';
 
 /// Full-screen view of a single scouting record.
@@ -48,8 +48,19 @@ class RecordDetailPage extends StatelessWidget {
       ),
     );
     if (confirmed == true && context.mounted) {
-      await context.read<ScoutingRepository>().deleteByUuid(record.uuid);
-      if (context.mounted) Navigator.of(context).pop();
+      try {
+        await context.read<SyncRepository>().deleteRecord(record.uuid);
+        if (context.mounted) Navigator.of(context).pop();
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Could not delete record. Are you online?'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -58,7 +69,7 @@ class RecordDetailPage extends StatelessWidget {
     final qrData = QrRecordCodec.encode(record);
     final when = DateFormat('MMM d, yyyy · h:mm a').format(record.timestamp);
     final scheme = Theme.of(context).colorScheme;
-    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin;
+    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin || context.read<AuthCubit>().state is AuthAuthenticatedSuperAdmin;
 
     return Scaffold(
       appBar: AppBar(
