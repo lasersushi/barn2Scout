@@ -65,9 +65,11 @@ class AuthCubit extends Cubit<AuthState> {
       final user = res.user;
       if (user != null) {
         final addr = user.email ?? '';
-        emit(_isMentorEmail(addr)
-            ? AuthAuthenticatedAdmin(addr)
-            : AuthAuthenticated(addr));
+        emit(_isSuperAdminEmail(addr)
+            ? AuthAuthenticatedSuperAdmin(addr)
+            : _isMentorEmail(addr)
+                ? AuthAuthenticatedAdmin(addr)
+                : AuthAuthenticated(addr));
       } else {
         emit(const AuthError('Sign in failed. Check your credentials.'));
       }
@@ -96,9 +98,11 @@ class AuthCubit extends Cubit<AuthState> {
       final user = res.user;
       if (user != null) {
         final addr = user.email ?? '';
-        emit(_isMentorEmail(addr)
-            ? AuthAuthenticatedAdmin(addr)
-            : AuthAuthenticated(addr));
+        emit(_isSuperAdminEmail(addr)
+            ? AuthAuthenticatedSuperAdmin(addr)
+            : _isMentorEmail(addr)
+                ? AuthAuthenticatedAdmin(addr)
+                : AuthAuthenticated(addr));
       } else {
         emit(const AuthError('Sign up failed. Try a different email.'));
       }
@@ -133,6 +137,21 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> signOut() async {
     await _client.auth.signOut();
     emit(const AuthUnauthenticated());
+  }
+
+  /// Permanently deletes another user's account by email.
+  /// Only callable by super admins. Enforced server-side in the Postgres function.
+  /// Returns an error message on failure, null on success.
+  Future<String?> deleteUserByEmail(String targetEmail) async {
+    try {
+      await _client.rpc('delete_user_by_email',
+          params: {'target_email': targetEmail.trim().toLowerCase()});
+      return null;
+    } on AuthException catch (e) {
+      return e.message;
+    } catch (e) {
+      return 'Something went wrong. Check your connection.';
+    }
   }
 
   /// Permanently deletes the signed-in user's Supabase account.
