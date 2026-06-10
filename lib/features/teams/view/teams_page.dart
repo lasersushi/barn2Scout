@@ -5,6 +5,7 @@ import '../../../core/config/app_config.dart';
 import '../../../data/models/nexus_pit.dart';
 import '../../../data/repositories/picklist_repository.dart';
 import '../../../data/repositories/schedule_repository.dart';
+import '../../settings/cubit/settings_cubit.dart';
 import '../cubit/picklist_cubit.dart';
 import '../cubit/ratings_cubit.dart';
 import '../cubit/teams_cubit.dart';
@@ -36,7 +37,14 @@ class _TeamsPageState extends State<TeamsPage>
 
   @override
   Widget build(BuildContext context) {
+    // Recreate the TBA-backed cubits whenever the event override changes, so
+    // Rankings and Pit Map reload against the newly selected event. (They live
+    // in a kept-alive IndexedStack, so without a changing key they would never
+    // reload.)
+    final override = context
+        .select<SettingsCubit, String?>((c) => c.state.eventKeyOverride);
     return MultiBlocProvider(
+      key: ValueKey(override),
       providers: [
         BlocProvider(
           create: (ctx) =>

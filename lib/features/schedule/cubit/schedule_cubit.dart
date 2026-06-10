@@ -19,15 +19,16 @@ class ScheduleCubit extends Cubit<ScheduleState> {
   ///   - Current/upcoming event → drives the schedule and Schedules tabs
   ///   - Most recently completed event → drives the Past Matches tab
   ///   (If they're the same event, the match list is reused with no extra call.)
-  Future<void> load([String? eventKeyOverride]) async {
+  Future<void> load() async {
     if (state is ScheduleLoading) return;
     emit(const ScheduleLoading());
     try {
-      // Detect both event keys concurrently.
+      // The repository resolves the event, honouring any Settings override.
+      // (The cubit used to take an override argument that no caller ever
+      // passed — that gap was the original bug: the override was saved but
+      // never reached the event logic.)
       final detected = await Future.wait([
-        eventKeyOverride != null
-            ? Future.value((key: eventKeyOverride, status: EventStatus.active))
-            : _repo.detectCurrentEvent(),
+        _repo.detectCurrentEvent(),
         _repo.detectPastEvent(),
       ]);
 
