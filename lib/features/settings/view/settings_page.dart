@@ -371,7 +371,7 @@ class SettingsPage extends StatelessWidget {
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(
-            hintText: 'e.g. 2027casvr',
+            hintText: 'e.g. 2026cacac',
             helperText: 'TBA-style event key. Leave blank to auto-detect.',
           ),
         ),
