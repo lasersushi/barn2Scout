@@ -48,7 +48,10 @@ class AuthCubit extends Cubit<AuthState> {
       );
       final user = res.user;
       if (user != null) {
-        emit(AuthAuthenticated(user.email ?? ''));
+        final addr = user.email ?? '';
+        emit(_isTeacherEmail(addr)
+            ? AuthAuthenticatedAdmin(addr)
+            : AuthAuthenticated(addr));
       } else {
         emit(const AuthError('Sign in failed. Check your credentials.'));
       }
@@ -76,7 +79,10 @@ class AuthCubit extends Cubit<AuthState> {
       );
       final user = res.user;
       if (user != null) {
-        emit(AuthAuthenticated(user.email ?? ''));
+        final addr = user.email ?? '';
+        emit(_isTeacherEmail(addr)
+            ? AuthAuthenticatedAdmin(addr)
+            : AuthAuthenticated(addr));
       } else {
         emit(const AuthError('Sign up failed. Try a different email.'));
       }

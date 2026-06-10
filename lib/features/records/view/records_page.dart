@@ -8,7 +8,7 @@ import '../../../data/repositories/pit_scouting_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
 import '../../scouting/view/pit_form_page.dart';
 import '../../scouting/view/scouting_form_page.dart';
-import '../../settings/cubit/settings_cubit.dart';
+import '../../auth/cubit/auth_cubit.dart';
 import '../../sync/cubit/sync_cubit.dart';
 import '../cubit/pit_records_cubit.dart';
 import '../cubit/records_cubit.dart';
@@ -182,8 +182,7 @@ class _MatchRecordTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final when = DateFormat('MMM d · h:mm a').format(record.timestamp);
-    final myName = context.read<SettingsCubit>().state.scouterName;
-    final isMine = record.scouterName == myName && myName.isNotEmpty;
+    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin;
 
     final tile = ListTile(
       onTap: () => RecordDetailPage.push(context, record),
@@ -206,7 +205,7 @@ class _MatchRecordTile extends StatelessWidget {
       ),
     );
 
-    if (!isMine) return tile;
+    if (!isAdmin) return tile;
 
     return Dismissible(
       key: ValueKey(record.uuid),
@@ -287,8 +286,7 @@ class _PitRecordTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final when = DateFormat('MMM d · h:mm a').format(record.timestamp);
-    final myName = context.read<SettingsCubit>().state.scouterName;
-    final isMine = record.scouterName == myName && myName.isNotEmpty;
+    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin;
 
     final tile = ListTile(
       onTap: () => PitRecordDetailPage.push(context, record),
@@ -311,7 +309,7 @@ class _PitRecordTile extends StatelessWidget {
       ),
     );
 
-    if (!isMine) return tile;
+    if (!isAdmin) return tile;
 
     return Dismissible(
       key: ValueKey(record.uuid),

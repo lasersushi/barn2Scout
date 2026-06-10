@@ -6,7 +6,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../../core/utils/qr_record_codec.dart';
 import '../../../data/models/scouting_record.dart';
 import '../../../data/repositories/scouting_repository.dart';
-import '../../settings/cubit/settings_cubit.dart';
+import '../../auth/cubit/auth_cubit.dart';
 
 /// Full-screen view of a single scouting record.
 ///
@@ -58,14 +58,13 @@ class RecordDetailPage extends StatelessWidget {
     final qrData = QrRecordCodec.encode(record);
     final when = DateFormat('MMM d, yyyy · h:mm a').format(record.timestamp);
     final scheme = Theme.of(context).colorScheme;
-    final myName = context.read<SettingsCubit>().state.scouterName;
-    final isMine = record.scouterName == myName && myName.isNotEmpty;
+    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin;
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Team ${record.teamNumber} · Match ${record.matchNumber}'),
         actions: [
-          if (isMine)
+          if (isAdmin)
             IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: 'Delete record',
