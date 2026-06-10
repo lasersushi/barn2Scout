@@ -6,6 +6,7 @@ import 'features/auth/cubit/auth_cubit.dart';
 import 'features/auth/view/login_page.dart';
 import 'features/settings/cubit/settings_cubit.dart';
 import 'features/shell/view/home_shell.dart';
+import 'features/shell/view/admin_shell.dart';
 
 class Barn2ScoutApp extends StatelessWidget {
   const Barn2ScoutApp({super.key});
@@ -42,6 +43,7 @@ class _AuthGate extends StatelessWidget {
           const Scaffold(body: Center(child: CircularProgressIndicator())),
         AuthUnauthenticated() || AuthError() => const LoginPage(),
         AuthAuthenticated() => const HomeShell(),
+        AuthAuthenticatedAdmin() => const AdminShell(),
       },
     );
   }

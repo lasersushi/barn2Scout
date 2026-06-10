@@ -12,8 +12,12 @@ class AuthCubit extends Cubit<AuthState> {
 
   static bool _isAllowedEmail(String email) {
     final lower = email.trim().toLowerCase();
-    return lower.endsWith('@priorypanther.com') ||
-        lower.endsWith('@prioryca.org');
+    return lower.endsWith('@priorypanther.com');
+  }
+
+  static bool _isTeacherEmail(String email) {
+    final lower = email.trim().toLowerCase();
+    return lower.endsWith('@prioryca.org');
   }
 
   void _checkSession() {
@@ -28,8 +32,12 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   Future<void> signIn(String email, String password) async {
-    if (!_isAllowedEmail(email)) {
-      emit(const AuthError('Only @priorypanther.com or @prioryca.org accounts are allowed.'));
+    if (!_isAllowedEmail(email) && !_isTeacherEmail(email)) {
+      emit(
+        const AuthError(
+          'Only @priorypanther.com or @prioryca.org accounts are allowed. If you are a mentor, please contact Lucas for assistance.',
+        ),
+      );
       return;
     }
     emit(const AuthLoading());
@@ -52,8 +60,12 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   Future<void> signUp(String email, String password) async {
-    if (!_isAllowedEmail(email)) {
-      emit(const AuthError('Only @priorypanther.com or @prioryca.org accounts are allowed. If you are a mentor, please ask Lucas for assitance with signing in.'));
+    if (!_isAllowedEmail(email) && !_isTeacherEmail(email)) {
+      emit(
+        const AuthError(
+          'Only @priorypanther.com or @prioryca.org accounts are allowed. If you are a mentor, please contact Lucas for assistance.',
+        ),
+      );
       return;
     }
     emit(const AuthLoading());
