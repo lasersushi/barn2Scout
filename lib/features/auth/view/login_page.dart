@@ -89,7 +89,7 @@ class _LoginPageState extends State<LoginPage> {
                       autofillHints: const [AutofillHints.email],
                       textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
-                        labelText: 'Email',
+                        labelText: 'Email(Priory Email, Unless you are a mentor.)',
                         prefixIcon: Icon(Icons.email_outlined),
                         border: OutlineInputBorder(),
                       ),
