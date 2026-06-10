@@ -5,6 +5,7 @@ import '../../../data/repositories/pit_scouting_repository.dart';
 import '../../../data/repositories/schedule_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
 import '../../../data/repositories/sync_repository.dart';
+import '../../../data/repositories/update_repository.dart';
 import '../../auth/cubit/auth_cubit.dart';
 import '../../records/view/records_page.dart';
 import '../../schedule/cubit/schedule_cubit.dart';
@@ -15,6 +16,8 @@ import '../../settings/cubit/settings_cubit.dart';
 import '../../settings/view/settings_page.dart';
 import '../../sync/cubit/sync_cubit.dart';
 import '../../teams/view/teams_page.dart';
+import '../../update/cubit/update_cubit.dart';
+import '../../update/widgets/update_banner.dart';
 import '../cubit/navigation_cubit.dart';
 
 class HomeShell extends StatefulWidget {
@@ -112,6 +115,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             ctx.read<PitScoutingRepository>(),
           )..syncNow(),
         ),
+        BlocProvider(
+          create: (ctx) =>
+              UpdateCubit(ctx.read<UpdateRepository>())..init(),
+        ),
       ],
       // Reload the schedule (and Past Matches) whenever the event override
       // changes, since the pages live in a kept-alive IndexedStack and would
@@ -133,7 +140,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 final index = rawIndex.clamp(0, pages.length - 1);
 
                 return Scaffold(
-                  body: IndexedStack(index: index, children: pages),
+                  body: Column(
+                    children: [
+                      // Full-APK update prompt; collapses to nothing when
+                      // there is no update activity.
+                      const UpdateBanner(),
+                      Expanded(
+                        child: IndexedStack(index: index, children: pages),
+                      ),
+                    ],
+                  ),
                   bottomNavigationBar: NavigationBar(
                     selectedIndex: index,
                     onDestinationSelected:

@@ -24,6 +24,9 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
+# At the next release, set this to match the GitHub release tag (e.g.
+# v26.2.0 → 26.2.0+4) so the in-app update check can compare them. The +N
+# build number must increase with every release.
 version: 1.0.2+3
 
 environment:
@@ -54,6 +57,9 @@ dependencies:
   isar_community: ^3.3.2
   isar_community_flutter_libs: ^3.3.2
   mobile_scanner: ^7.2.0
+  package_info_plus: ^10.1.0
+  shorebird_code_push: ^2.0.6
+  ota_update: ^7.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -77,6 +83,8 @@ flutter:
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
+  assets:
+    - shorebird.yaml
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
