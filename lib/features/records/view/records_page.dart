@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import '../../../data/models/pit_scouting_record.dart';
 import '../../../data/models/scouting_record.dart';
 import '../../../data/repositories/pit_scouting_repository.dart';
-import '../../../data/repositories/schedule_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
 import '../../scouting/view/pit_form_page.dart';
 import '../../scouting/view/scouting_form_page.dart';
@@ -26,27 +25,12 @@ class RecordsPage extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-            create: (ctx) => RecordsCubit(
-                  ctx.read<ScoutingRepository>(),
-                  ctx.read<ScheduleRepository>(),
-                )..init()),
+            create: (ctx) => RecordsCubit(ctx.read<ScoutingRepository>())),
         BlocProvider(
-            create: (ctx) => PitRecordsCubit(
-                  ctx.read<PitScoutingRepository>(),
-                  ctx.read<ScheduleRepository>(),
-                )..init()),
+            create: (ctx) =>
+                PitRecordsCubit(ctx.read<PitScoutingRepository>())),
       ],
-      // Re-detect the comp when the event override changes in Settings —
-      // this page lives in an IndexedStack, so it's never rebuilt on its own.
-      child: BlocListener<SettingsCubit, SettingsState>(
-        listenWhen: (prev, curr) =>
-            prev.eventKeyOverride != curr.eventKeyOverride,
-        listener: (context, _) {
-          context.read<RecordsCubit>().init();
-          context.read<PitRecordsCubit>().init();
-        },
-        child: const _RecordsView(),
-      ),
+      child: const _RecordsView(),
     );
   }
 }
@@ -116,17 +100,10 @@ class _RecordsViewState extends State<_RecordsView>
           ],
         ),
       ),
-      // Hidden when there's no active comp — a record created then would be
-      // keyed to a past event and instantly invisible.
-      floatingActionButton: BlocBuilder<RecordsCubit, RecordsState>(
-        builder: (context, state) {
-          if (state is RecordsNoEvent) return const SizedBox.shrink();
-          return FloatingActionButton.extended(
-            onPressed: () => _startNewRecord(context),
-            icon: const Icon(Icons.add),
-            label: Text(_tab.index == 0 ? 'Scout' : 'Pit Scout'),
-          );
-        },
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _startNewRecord(context),
+        icon: const Icon(Icons.add),
+        label: Text(_tab.index == 0 ? 'Scout' : 'Pit Scout'),
       ),
       body: TabBarView(
         controller: _tab,
@@ -169,42 +146,6 @@ class _RecordsViewState extends State<_RecordsView>
   }
 }
 
-// ── No-event empty state ──────────────────────────────────────────────────────
-
-/// Shown when there's no active or upcoming comp. Records from past comps
-/// still exist — they're just filtered from view.
-class _NoEventState extends StatelessWidget {
-  const _NoEventState();
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.event_busy_outlined,
-                size: 48, color: cs.onSurfaceVariant),
-            const SizedBox(height: 12),
-            const Text(
-              'No active competition.',
-              style: TextStyle(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Records will appear here\nduring your next comp.',
-              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── Match records list ────────────────────────────────────────────────────────
 
 class _MatchRecordsList extends StatelessWidget {
@@ -212,25 +153,22 @@ class _MatchRecordsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<RecordsCubit, RecordsState>(
-      builder: (context, state) {
-        return switch (state) {
-          RecordsLoading() =>
-            const Center(child: CircularProgressIndicator()),
-          RecordsNoEvent() => const _NoEventState(),
-          RecordsLoaded(:final records) when records.isEmpty => const Center(
-              child: Text(
-                'No match records yet.\nTap "Scout" to add one.',
-                textAlign: TextAlign.center,
-              ),
+    return BlocBuilder<RecordsCubit, List<ScoutingRecord>>(
+      builder: (context, records) {
+        if (records.isEmpty) {
+          return const Center(
+            child: Text(
+              'No match records yet.\nTap "Scout" to add one.',
+              textAlign: TextAlign.center,
             ),
-          RecordsLoaded(:final records) => ListView.separated(
-              itemCount: records.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) =>
-                  _MatchRecordTile(record: records[index]),
-            ),
-        };
+          );
+        }
+        return ListView.separated(
+          itemCount: records.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, index) =>
+              _MatchRecordTile(record: records[index]),
+        );
       },
     );
   }
@@ -320,26 +258,22 @@ class _PitRecordsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<PitRecordsCubit, PitRecordsState>(
-      builder: (context, state) {
-        return switch (state) {
-          PitRecordsLoading() =>
-            const Center(child: CircularProgressIndicator()),
-          PitRecordsNoEvent() => const _NoEventState(),
-          PitRecordsLoaded(:final records) when records.isEmpty =>
-            const Center(
-              child: Text(
-                'No pit records yet.\nTap "Pit Scout" to add one.',
-                textAlign: TextAlign.center,
-              ),
+    return BlocBuilder<PitRecordsCubit, List<PitScoutingRecord>>(
+      builder: (context, records) {
+        if (records.isEmpty) {
+          return const Center(
+            child: Text(
+              'No pit records yet.\nTap "Pit Scout" to add one.',
+              textAlign: TextAlign.center,
             ),
-          PitRecordsLoaded(:final records) => ListView.separated(
-              itemCount: records.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) =>
-                  _PitRecordTile(record: records[index]),
-            ),
-        };
+          );
+        }
+        return ListView.separated(
+          itemCount: records.length,
+          separatorBuilder: (_, _) => const Divider(height: 1),
+          itemBuilder: (context, index) =>
+              _PitRecordTile(record: records[index]),
+        );
       },
     );
   }

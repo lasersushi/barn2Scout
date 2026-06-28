@@ -226,63 +226,34 @@ class _PhaseCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          ...data.entries.map((e) {
-            final value = e.value.toString();
-            const valueStyle = TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            );
-
-            // Notes — just show the value.
-            if (e.key.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Text(value, style: const TextStyle(fontSize: 13)),
-              );
-            }
-
-            final keyText = Text(
-              _prettyKey(e.key),
-              style: TextStyle(
-                fontSize: 13,
-                color: scheme.onSurfaceVariant,
-              ),
-            );
-
-            // Long free-text answers read better stacked under their label
-            // than squeezed into a right-aligned column.
-            if (value.length > 40) {
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    keyText,
-                    const SizedBox(height: 2),
-                    Text(value, style: valueStyle),
-                  ],
-                ),
-              );
-            }
-
-            return Padding(
+          ...data.entries.map(
+            (e) => Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: keyText),
-                  const SizedBox(width: 12),
-                  Flexible(
-                    child: Text(
-                      value,
-                      style: valueStyle,
-                      textAlign: TextAlign.right,
+              child: e.key.isEmpty
+                  // Notes — just show the value
+                  ? Text(e.value.toString(), style: const TextStyle(fontSize: 13))
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _prettyKey(e.key),
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          e.value.toString(),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            );
-          }),
+            ),
+          ),
         ],
       ),
     );
