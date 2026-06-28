@@ -6,7 +6,9 @@
       "Bash(git -C /Users/lucaswalker/barnScout branch -a)",
       "Bash(flutter analyze *)",
       "Bash(git ls-remote *)",
-      "Bash(xargs cat)"
+      "Bash(xargs cat)",
+      "Bash(git branch *)",
+      "Bash(git push *)"
     ]
   }
 }
