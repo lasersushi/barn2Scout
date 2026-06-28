@@ -74,12 +74,28 @@ class ScheduleRepository {
       return (key: _cachedEventKey!, status: _cachedStatus);
     }
 
-    final events = await _fetchEvents();
+    final List<Map<String, dynamic>> events;
+    try {
+      events = await _fetchEvents();
+    } catch (_) {
+      // Offline — fall back to the comp from the last time we were online.
+      // Deliberately not cached so the next call retries real detection.
+      final lastKey = settings.lastDetectedEventKey;
+      if (lastKey != null && lastKey.isNotEmpty) {
+        final status = EventStatus.values.asNameMap()[
+                settings.lastDetectedEventStatus ?? ''] ??
+            EventStatus.past;
+        return (key: lastKey, status: status);
+      }
+      return (key: AppConfig.currentEventKey, status: EventStatus.past);
+    }
     final now = DateTime.now();
 
     ({String key, EventStatus status}) result(String key, EventStatus status) {
       _cachedEventKey = key;
       _cachedStatus = status;
+      // Remember this detection so offline cold starts can reuse it.
+      settings.setLastDetectedEvent(key, status.name);
       return (key: key, status: status);
     }
 
