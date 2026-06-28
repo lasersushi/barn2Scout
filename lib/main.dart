@@ -19,6 +19,9 @@ import 'data/services/nexus_service.dart';
 import 'data/services/tba_service.dart';
 import 'features/settings/cubit/settings_cubit.dart';
 
+//TODO: Add live activites for iOS
+//TODO: Look into apple private cloud compute with foundation models from WWDC
+//TODO: Look into on-device AI integrated with gemini spark, or API
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 

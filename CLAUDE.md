@@ -40,8 +40,8 @@ lib/
   app.dart               # MaterialApp + AuthCubit; shows LoginPage or HomeShell via _AuthGate
   core/
     config/app_config.dart  # Team identity + API keys (gitignored — update each event)
-    theme/               # AppTheme — seed color 0xFF2E7D32 (Team 751 green)
-    utils/               # stats_utils (normalCdf), qr_record_codec
+    theme/               # AppTheme — seed color 0xFF0060A7 (Barn2 Robotics blue)
+    utils/               # stats_utils (normalCdf), qr_record_codec, app_version (version comparison)
   data/
     models/              # Isar @collection classes + plain value types
     services/            # IsarService, TbaService, NexusService
@@ -53,8 +53,9 @@ lib/
     records/             # Match/Pit TabBar, QR share/scan
     schedule/            # My Schedule, All Schedules, Past Matches tabs
     sync/                # SyncCubit — periodic pull + auto-push on new record
-    teams/               # Rankings + Pit Map + Picklist sub-tabs
+    teams/               # Rankings + Pit Map + Picklist sub-tabs; TeamDossierSheet (TBA-only)
     settings/            # Preferences + account section backed by JSON file (not Isar)
+    update/              # UpdateCubit + UpdateBanner — GitHub APK OTA (Android only)
   prototype/             # Throwaway explorations; never imported from real code
 ```
 
@@ -145,15 +146,28 @@ Event auto-detection priority: active today → next upcoming → most recent pa
 
 Three sub-tabs in `TeamsPage`:
 
-1. **Rankings** (`RankingsCubit`) — pulls TBA `/rankings` for W-L-T, OPR, RP. Emits `RatingsNoEvent` if no upcoming/active event exists, showing "No upcoming competitions" instead of stale data.
-2. **Pit Map** — Nexus pit location data.
-3. **Picklist** (`PicklistCubit`) — also suppressed on past events via the same `EventStatus` check.
-
-`RatingsCubit` (renamed from `TeamsCubit` / `AnalyticsCubit` in earlier sessions) loads TBA rankings and OPR. Bail path: if `detectCurrentEvent()` returns `EventStatus.past`, emit `RatingsNoEvent` and return early.
+1. **Rankings** (`RatingsCubit`) — pulls TBA `/rankings` for W-L-T, OPR, RP. Emits `RatingsNoEvent` if no upcoming/active event exists, showing "No upcoming competitions" instead of stale data. Bail path: if `detectCurrentEvent()` returns `EventStatus.past`, emit `RatingsNoEvent` and return early.
+2. **Pit Map** (`TeamsCubit`) — Nexus pit location data. Separate from `RatingsCubit`.
+3. **Picklist** (`PicklistCubit`) — also suppressed on past events via the same `EventStatus` check. Tapping a team row opens `TeamDossierSheet` — a bottom sheet showing OPR/DPR/CCWM, ranking, and real match score spread. Entirely TBA-derived; no human scouting feeds it.
 
 ## Match prediction system
 
 `MatchPrediction.compute(match, ratings)` is TBA-data-only. Alliance expected score = Σ OPR; P(red wins) via `normalCdf` over margin / spread. Suppressed when OPRs aren't available. `MatchPredictionBar` renders as a color-split bar under each upcoming `MatchTile`.
+
+## Update system
+
+Two separate update paths — both are transparent to scouters:
+
+- **Shorebird patches** (Dart-only changes) — applied automatically by the Shorebird SDK on launch. No cubit involved; `shorebird.yaml` configures the app ID.
+- **GitHub APK releases** (native or large changes, Android only) — `UpdateCubit` calls `UpdateRepository.checkForUpdate()` once per launch, comparing `pubspec.yaml`'s `version` against the latest GitHub release tag via `GithubReleaseService`. If newer, `UpdateBanner` appears and `downloadAndInstall()` streams `InstallStep` progress to the cubit, ending with the system install prompt.
+
+**Versioning rule:** The `version` field in `pubspec.yaml` must match the GitHub release tag (e.g. tag `v26.2.0` → `version: 26.2.0+N`). The build number `+N` must strictly increase per release. `lib/core/utils/app_version.dart` contains the pure version-comparison helpers.
+
+`UpdateCubit` is dormant on iOS — APK self-update is Android-only.
+
+## Offline caching
+
+`MatchRepository` and `EventRepository` are Isar-backed caches so the schedule works offline after first load. `ScheduleRepository` writes through to them and reads from them when the network is unavailable. They are distinct from the scouting record repositories and never contain user-generated data.
 
 ## State management
 

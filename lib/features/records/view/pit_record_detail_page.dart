@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
+import '../../../core/utils/qr_record_codec.dart';
 import '../../../data/models/pit_scouting_record.dart';
 import '../../../data/repositories/sync_repository.dart';
 import '../../auth/cubit/auth_cubit.dart';
@@ -60,6 +62,7 @@ class PitRecordDetailPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final qrData = QrRecordCodec.encodePit(record);
     final when =
         DateFormat('MMM d, yyyy · h:mm a').format(record.timestamp);
     final scheme = Theme.of(context).colorScheme;
@@ -82,6 +85,51 @@ class PitRecordDetailPage extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
+            // ── QR code ──────────────────────────────────────────────────
+            Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: scheme.shadow.withValues(alpha: 0.12),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(16),
+                child: QrImageView(
+                  data: qrData,
+                  version: QrVersions.auto,
+                  size: 240,
+                  eyeStyle: const QrEyeStyle(
+                    eyeShape: QrEyeShape.square,
+                    color: Colors.black,
+                  ),
+                  dataModuleStyle: const QrDataModuleStyle(
+                    dataModuleShape: QrDataModuleShape.square,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+            Text(
+              'Point another phone\'s scanner at this QR',
+              style: TextStyle(
+                fontSize: 13,
+                color: scheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+
+            const SizedBox(height: 28),
+            const Divider(),
+            const SizedBox(height: 12),
+
             _InfoRow(label: 'Event', value: record.eventKey),
             _InfoRow(label: 'Scouter', value: record.scouterName),
             _InfoRow(label: 'Recorded', value: when),
@@ -167,34 +215,54 @@ class _DataCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: data.entries
-            .map(
-              (e) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _prettyKey(e.key),
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      _prettyValue(e.value),
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
+        children: data.entries.map((e) {
+          final keyText = Text(
+            _prettyKey(e.key),
+            style: TextStyle(
+              fontSize: 13,
+              color: scheme.onSurfaceVariant,
+            ),
+          );
+          final value = _prettyValue(e.value);
+          final valueStyle = const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          );
+
+          // Long free-text answers (notes, observations) read better
+          // stacked under their label than squeezed into a right column.
+          if (value.length > 40) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  keyText,
+                  const SizedBox(height: 2),
+                  Text(value, style: valueStyle),
+                ],
               ),
-            )
-            .toList(),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 3),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: keyText),
+                const SizedBox(width: 12),
+                Flexible(
+                  child: Text(
+                    value,
+                    style: valueStyle,
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
       ),
     );
   }
