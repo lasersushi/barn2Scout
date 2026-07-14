@@ -14,6 +14,7 @@ flutter test
 
 # Run a single test file
 flutter test test/scouting_form_bloc_test.dart
+flutter test test/update_cubit_test.dart
 
 # Analyze (no issues should remain)
 flutter analyze
@@ -40,7 +41,7 @@ lib/
   app.dart               # MaterialApp + AuthCubit; shows LoginPage or HomeShell via _AuthGate
   core/
     config/app_config.dart  # Team identity + API keys (gitignored — update each event)
-    theme/               # AppTheme — seed color 0xFF2E7D32 (Team 751 green)
+    theme/               # AppTheme — seed color 0xFF0060A7 (Barn2 blue)
     utils/               # stats_utils (normalCdf), qr_record_codec
   data/
     models/              # Isar @collection classes + plain value types
@@ -55,6 +56,7 @@ lib/
     sync/                # SyncCubit — periodic pull + auto-push on new record
     teams/               # Rankings + Pit Map + Picklist sub-tabs
     settings/            # Preferences + account section backed by JSON file (not Isar)
+    update/              # UpdateCubit + UpdateBanner — Android-only full-APK update flow
   prototype/             # Throwaway explorations; never imported from real code
 ```
 
@@ -100,6 +102,17 @@ Isar is the device source of truth. `ScoutingRecord.synced` and `PitScoutingReco
 - `StreamSubscription` on `ScoutingRepository.watchAll()` and `PitScoutingRepository.watchAll()` auto-pushes when unsynced count increases
 
 Records are also shareable peer-to-peer via QR code (`qr_record_codec.dart` / `QrScanPage`).
+
+## In-app update system
+
+Two independent update paths exist — do not conflate them:
+
+- **Shorebird code push** (`shorebird_code_push`, configured in `shorebird.yaml`, `app_id` checked in and not secret) — ships Dart-only fixes as background patches with no store/TestFlight review. `auto_update` runs on launch; this path never touches `UpdateCubit`.
+- **Full-release banner** (`UpdateCubit` + `UpdateRepository` + `GithubReleaseService`) — for changes that need a new native build. Checks GitHub Releases once per launch, and is **Android-only** (`Platform.isAndroid` gate in `UpdateCubit`'s constructor; iOS stays dormant since Apple doesn't allow sideloaded self-updates). Drives a download → system-install-prompt flow surfaced by `UpdateBanner` at the top of `HomeShell`, above the `IndexedStack`.
+
+`UpdateCubit` is a sealed-state machine (`UpdateIdle`, `UpdateChecking`, `UpdateAvailable`, `UpdateDownloading`, `UpdateInstalling`, `UpdateCheckFailure`, `UpdateDownloadFailure`) built to fail silently on automatic checks (venue wifi is unreliable) while a user-initiated check from Settings gets in-row feedback. A dismissed version is only suppressed in-memory until next launch.
+
+**Release convention:** `pubspec.yaml`'s `version` build number must match the GitHub release tag (e.g. release `v26.2.0` → `26.2.0+4`) so the update check can compare versions — bump it on every release.
 
 ## Scouting forms
 
