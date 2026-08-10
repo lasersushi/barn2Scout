@@ -141,6 +141,11 @@ class SettingsPage extends StatelessWidget {
                 onTap: () => context.read<AuthCubit>().signOut(),
               ),
               ListTile(
+                leading: const Icon(Icons.timelapse),
+                title: const Text('Set Inactivity timeout'),
+                onTap: () => _showTimeoutDialog(context, settings.logoutTime),
+              ),
+              ListTile(
                 leading: Icon(Icons.delete_forever,
                     color: Theme.of(context).colorScheme.error),
                 title: Text(
@@ -270,6 +275,39 @@ class SettingsPage extends StatelessWidget {
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
+    }
+  }
+
+  Future<void> _showTimeoutDialog(BuildContext context, int logoutTime) async {
+    final controller = TextEditingController(text: logoutTime.toString());
+    final result = await showDialog<int>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Inactivity timeout'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Minutes',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(context).pop(int.tryParse(controller.text)),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && context.mounted) {
+      context.read<SettingsCubit>().setLogoutTime(result);
     }
   }
 
