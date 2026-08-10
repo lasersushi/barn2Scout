@@ -37,26 +37,26 @@ Feature-first layout under `lib/features/`. Data layer in `lib/data/`.
 ```
 lib/
   main.dart              # Boots Isar + Supabase, injects all repos, reads settings before runApp
-  app.dart               # MaterialApp + AuthCubit; shows LoginPage or HomeShell via _AuthGate
+  app.dart                # MaterialApp + AuthCubit; _AuthGate routes to LoginPage / HomeShell / AdminShell
   core/
     config/app_config.dart  # Team identity + API keys (gitignored — update each event)
     theme/               # AppTheme — seed color 0xFF0060A7 (Barn2 Robotics blue)
-    utils/               # stats_utils (normalCdf), qr_record_codec, app_version (version comparison)
+    utils/                # stats_utils (normalCdf), qr_record_codec, app_version (version comparison)
   data/
-    models/              # Isar @collection classes + plain value types
-    services/            # IsarService, TbaService, NexusService
-    repositories/        # All repo classes; ScheduleRepository is the most complex
+    models/               # Isar @collection classes + plain value types
+    services/             # IsarService, TbaService, NexusService
+    repositories/         # All repo classes; ScheduleRepository is the most complex
   features/
-    auth/                # AuthCubit + LoginPage (@priorypanther.com email/password)
-    shell/               # HomeShell (IndexedStack tabs), NavigationCubit, inactivity observer
-    scouting/            # Match form (Bloc FSM) + Pit form (Cubit) + FieldConfig system
-    records/             # Match/Pit TabBar, QR share/scan
-    schedule/            # My Schedule, All Schedules, Past Matches tabs
-    sync/                # SyncCubit — periodic pull + auto-push on new record
-    teams/               # Rankings + Pit Map + Picklist sub-tabs; TeamDossierSheet (TBA-only)
-    settings/            # Preferences + account section backed by JSON file (not Isar)
-    update/              # UpdateCubit + UpdateBanner — GitHub APK OTA (Android only)
-  prototype/             # Throwaway explorations; never imported from real code
+    auth/                 # AuthCubit (3 auth tiers) + LoginPage (@priorypanther.com / @prioryca.org email+password)
+    shell/                 # HomeShell (regular scouters) and AdminShell (admin/super admin) — separate IndexedStack tab sets, each with its own inactivity observer
+    scouting/               # Match form (Bloc FSM) + Pit form (Cubit) + FieldConfig system
+    records/                # Match/Pit TabBar, QR share/scan
+    schedule/               # My Schedule, All Schedules, Past Matches tabs
+    sync/                    # SyncCubit — periodic pull + auto-push on new record
+    teams/                    # Rankings + Pit Map + Picklist sub-tabs; TeamDossierSheet (TBA-only)
+    settings/                 # Preferences + account section backed by JSON file (not Isar); includes customizable auto-logout time
+    update/                    # UpdateCubit + UpdateBanner — GitHub APK OTA (Android only)
+  prototype/                  # Throwaway explorations; never imported from real code
 ```
 
 **Data flow rule:** UI and Blocs talk only to repositories, never directly to Isar/TBA/Supabase.
@@ -82,9 +82,13 @@ Isar cannot store `Map<String, dynamic>` directly. The pattern used everywhere: 
 
 ## Auth
 
-`AuthCubit` wraps Supabase auth. Sign-in is always required on cold start (`_checkSession()` emits `AuthUnauthenticated` unconditionally). Only `@priorypanther.com` emails are accepted — enforced in `AuthCubit._isAllowedEmail()` before any Supabase call.
+`AuthCubit` wraps Supabase auth. Sign-in is always required on cold start (`_checkSession()` emits `AuthUnauthenticated` unconditionally). Allowed emails: any `@priorypanther.com` address, plus a hardcoded `_adminEmails` set (mentors → `AuthAuthenticatedAdmin`), a hardcoded `_superAdminEmails` set, and any `@prioryca.org` address (both → `AuthAuthenticatedSuperAdmin`). Role membership is checked in `AuthCubit` on every sign-in/sign-up.
 
-`HomeShell` is a `StatefulWidget` with `WidgetsBindingObserver`. When the app resumes after ≥2 hours of inactivity, it calls `AuthCubit.signOutDueToInactivity()`, which returns the user to `LoginPage`.
+`app.dart`'s `_AuthGate` routes on the emitted state: `AuthAuthenticated` → `HomeShell` (regular scouters), `AuthAuthenticatedAdmin` / `AuthAuthenticatedSuperAdmin` → `AdminShell` (currently identical tab set to `HomeShell` minus a still-disabled Manager page — see the `//TODO` in `admin_shell.dart`).
+
+Super admins can call `AuthCubit.deleteUserByEmail()`, which invokes the `delete_user_by_email` Postgres RPC — enforced server-side, not just client-side.
+
+Both `HomeShell` and `AdminShell` are `StatefulWidget`s with their own `WidgetsBindingObserver`. When the app resumes after inactivity exceeding `SettingsCubit.state.logoutTime` minutes (user-configurable, default 180, valid range 60–300), each calls `AuthCubit.signOutDueToInactivity()`, returning the user to `LoginPage`. Keep this logic in sync between the two shells when editing one.
 
 ## Sync model
 
@@ -95,7 +99,7 @@ Isar is the device source of truth. `ScoutingRecord.synced` and `PitScoutingReco
 - **Pit records** (`pit_scouting_records` Supabase table) — same pattern
 - **Picklists** (`picklists` table) — upsert all local; remote wins on `updatedAt` conflict
 
-`SyncCubit` (provided in `HomeShell`):
+`SyncCubit` (provided in both `HomeShell` and `AdminShell`):
 - Calls `syncNow()` on mount (full push + pull)
 - `Timer.periodic(1 min)` pulls records and picklists silently
 - `StreamSubscription` on `ScoutingRepository.watchAll()` and `PitScoutingRepository.watchAll()` auto-pushes when unsynced count increases
@@ -130,11 +134,11 @@ Field `key` strings are permanent — they become JSON map keys in stored record
 
 ## Settings persistence
 
-`SettingsRepository` reads and writes a plain JSON file (`settings.json` in the app support directory). Not Isar-backed. Call `init()` before `runApp` (already done). Key settings: `scouterName`, `themeMode`, `eventKeyOverride`, `showPastMatchesTab`.
+`SettingsRepository` reads and writes a plain JSON file (`settings.json` in the app support directory). Not Isar-backed. Call `init()` before `runApp` (already done). Key settings: `scouterName`, `themeMode`, `eventKeyOverride`, `showPastMatchesTab`, `logoutTime` (auto-logout minutes, 60–300, default 180 — read fresh on app startup so a change takes effect without requiring a reinstall).
 
 ## Schedule feature
 
-`ScheduleCubit` is provided in `HomeShell` (not `main.dart`) — it only lives while the shell is mounted.
+`ScheduleCubit` is provided in `HomeShell`/`AdminShell` (not `main.dart`) — it only lives while the active shell is mounted.
 
 `ScheduleRepository` combines:
 - **TBA** (`/event/{key}/matches/simple`, `/oprs`, `/rankings`) — schedule, results, OPR/ranking data
@@ -177,3 +181,7 @@ Two separate update paths — both are transparent to scouters:
 - Simpler reactive state → `Cubit` (everything else)
 
 `StopwatchCubit` owns the only `dart:async Timer` in the scouting form widgets. `SyncCubit` owns the only `Timer.periodic` in the app.
+
+## Live Activities
+
+iOS Live Activity support is native ActivityKit code under `ios/Barn2LiveActivity` — not the `live_activities` Flutter package, which cannot display pushed/updated data. `lib/features/liveActivity` and `lib/prototype/live_activity` currently exist as empty placeholder directories.
