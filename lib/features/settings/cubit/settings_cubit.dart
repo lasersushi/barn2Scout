@@ -13,6 +13,7 @@ class SettingsCubit extends Cubit<SettingsState> {
           themeMode: _repo.themeMode,
           eventKeyOverride: _repo.eventKeyOverride,
           showPastMatchesTab: _repo.showPastMatchesTab,
+          logoutTime: _repo.logoutTime,
         ));
 
   final SettingsRepository _repo;
