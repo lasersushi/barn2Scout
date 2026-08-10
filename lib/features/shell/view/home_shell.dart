@@ -28,7 +28,6 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
-  static const _inactivityLimit = Duration(hours: 2);
   DateTime? _pausedAt;
 
   @override
@@ -49,7 +48,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       _pausedAt = DateTime.now();
     } else if (state == AppLifecycleState.resumed && _pausedAt != null) {
       final inactive = DateTime.now().difference(_pausedAt!);
-      if (inactive > _inactivityLimit) {
+      final inactivityLimit = Duration(minutes: context.read<SettingsCubit>().state.logoutTime);
+      if (inactive > inactivityLimit) {
         context.read<AuthCubit>().signOutDueToInactivity();
       }
       _pausedAt = null;
