@@ -7,7 +7,10 @@ class SettingsState extends Equatable {
     this.eventKeyOverride,
     this.showPastMatchesTab = false,
     this.logoutTime = 180,
-  });
+  }) : assert(
+         logoutTime >= 60 && logoutTime <= 300,
+         'logoutTime must be between 60 and 300 minutes',
+       );
 
   final String scouterName;
   final ThemeMode themeMode;
