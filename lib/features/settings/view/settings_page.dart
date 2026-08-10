@@ -80,19 +80,6 @@ class SettingsPage extends StatelessWidget {
                 ),
               ),
 
-              _SectionHeader('Security'),
-              ListTile(
-                title: const Text('Auto sign-out'),
-                subtitle: Text(
-                  'After ${_formatDuration(settings.logoutMinutes)} of inactivity',
-                ),
-                trailing: TextButton(
-                  onPressed: () =>
-                      _editLogoutMinutes(context, settings.logoutMinutes),
-                  child: const Text('Edit'),
-                ),
-              ),
-
               _SectionHeader('Tabs'),
               SwitchListTile(
                 title: const Text('Past Matches tab'),
@@ -407,65 +394,6 @@ class SettingsPage extends StatelessWidget {
         context.read<SettingsCubit>().setEventOverride(result);
       }
     }
-  }
-
-  Future<void> _editLogoutMinutes(BuildContext context, int current) async {
-    final hoursController =
-        TextEditingController(text: (current ~/ 60).toString());
-    final minutesController =
-        TextEditingController(text: (current % 60).toString());
-    final result = await showDialog<int>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Auto sign-out'),
-        content: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Expanded(
-              child: TextField(
-                controller: hoursController,
-                autofocus: true,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Hours'),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: minutesController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Minutes'),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final hours = int.tryParse(hoursController.text.trim()) ?? 0;
-              final minutes = int.tryParse(minutesController.text.trim()) ?? 0;
-              Navigator.of(context).pop(hours * 60 + minutes);
-            },
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (result != null && result > 0 && context.mounted) {
-      context.read<SettingsCubit>().setLogoutMinutes(result);
-    }
-  }
-
-  static String _formatDuration(int totalMinutes) {
-    final hours = totalMinutes ~/ 60;
-    final minutes = totalMinutes % 60;
-    if (hours == 0) return '$minutes min';
-    if (minutes == 0) return '$hours hr';
-    return '$hours hr $minutes min';
   }
 }
 

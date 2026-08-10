@@ -20,9 +20,6 @@ import '../../update/cubit/update_cubit.dart';
 import '../../update/widgets/update_banner.dart';
 import '../cubit/navigation_cubit.dart';
 
-//TODO: Add the ManagerPage to the AdminShell when it's ready
-//TODO: Fix nav bar cramming when the Past tab is enabled
-
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
 
@@ -31,6 +28,7 @@ class AdminShell extends StatefulWidget {
 }
 
 class _AdminShellState extends State<AdminShell> with WidgetsBindingObserver {
+  static const _inactivityLimit = Duration(hours: 2);
   DateTime? _pausedAt;
 
   @override
@@ -51,10 +49,7 @@ class _AdminShellState extends State<AdminShell> with WidgetsBindingObserver {
       _pausedAt = DateTime.now();
     } else if (state == AppLifecycleState.resumed && _pausedAt != null) {
       final inactive = DateTime.now().difference(_pausedAt!);
-      final limit = Duration(
-        minutes: context.read<SettingsCubit>().state.logoutMinutes,
-      );
-      if (inactive > limit) {
+      if (inactive > _inactivityLimit) {
         context.read<AuthCubit>().signOutDueToInactivity();
       }
       _pausedAt = null;
@@ -66,7 +61,6 @@ class _AdminShellState extends State<AdminShell> with WidgetsBindingObserver {
         const OtherTeamSchedulesPage(),
         const TeamsPage(),
         const RecordsPage(),
-        // const ManagerPage(), //TODO: Add the ManagerPage
         const SettingsPage(),
         if (showPast) const PastMatchesPage(),
       ];
@@ -91,11 +85,6 @@ class _AdminShellState extends State<AdminShell> with WidgetsBindingObserver {
           icon: Icon(Icons.assignment_outlined),
           selectedIcon: Icon(Icons.assignment),
           label: 'Records',
-        ),
-        const NavigationDestination(
-          icon: Icon(Icons.manage_accounts_outlined),
-          selectedIcon: Icon(Icons.manage_accounts),
-          label: 'Management',
         ),
         const NavigationDestination(
           icon: Icon(Icons.settings_outlined),
