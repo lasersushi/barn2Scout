@@ -65,6 +65,8 @@ Future<void> main() async {
             tba: TbaService(),
             nexus: NexusService(),
             settings: ctx.read<SettingsRepository>(),
+            events: ctx.read<EventRepository>(),
+            teams: ctx.read<TeamRepository>(),
           ),
         ),
       ],

@@ -1,5 +1,7 @@
+import 'package:barn2scout/data/repositories/event_repository.dart';
 import 'package:barn2scout/data/repositories/schedule_repository.dart';
 import 'package:barn2scout/data/repositories/settings_repository.dart';
+import 'package:barn2scout/data/repositories/team_repository.dart';
 import 'package:barn2scout/data/services/nexus_service.dart';
 import 'package:barn2scout/data/services/tba_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,10 +17,27 @@ class _FakeSettings extends SettingsRepository {
   String? get eventKeyOverride => _override;
 }
 
+/// The Isar-backed caches are only touched by getTeams, which these tests never
+/// call — so they stay unopened. Any accidental use throws loudly rather than
+/// silently pulling a real database into a unit test.
+class _UnusedEvents implements EventRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
+}
+
+class _UnusedTeams implements TeamRepository {
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
+}
+
 ScheduleRepository _repo(String? override) => ScheduleRepository(
       tba: TbaService(),
       nexus: NexusService(),
       settings: _FakeSettings(override),
+      events: _UnusedEvents(),
+      teams: _UnusedTeams(),
     );
 
 void main() {

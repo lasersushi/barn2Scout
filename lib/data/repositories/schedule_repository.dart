@@ -1,13 +1,17 @@
 import 'dart:math' as math;
 
 import '../../core/config/app_config.dart';
+import '../models/event.dart';
 import '../models/nexus_match.dart';
 import '../models/nexus_pit.dart';
 import '../models/tba_match.dart';
+import '../models/team.dart';
 import '../models/team_rating.dart';
 import '../services/nexus_service.dart';
 import '../services/tba_service.dart';
+import 'event_repository.dart';
 import 'settings_repository.dart';
+import 'team_repository.dart';
 
 /// Where the detected "current" event sits relative to today.
 ///   - [active]   — happening right now
@@ -24,11 +28,17 @@ class ScheduleRepository {
     required this.tba,
     required this.nexus,
     required this.settings,
+    required this.events,
+    required this.teams,
   });
 
   final TbaService tba;
   final NexusService nexus;
   final SettingsRepository settings;
+
+  /// Isar caches. TBA is the authority; these keep the roster readable offline.
+  final EventRepository events;
+  final TeamRepository teams;
 
   /// In-memory cache of the year's events. Fetched once, shared by both detect
   /// methods so we only hit TBA once even if both are called.
@@ -177,6 +187,67 @@ class ScheduleRepository {
         .toList()
       ..sort((a, b) => a.sortKey.compareTo(b.sortKey));
     return matches;
+  }
+
+  Future<List<Team>> getTeams(String eventKey) async {
+    try {
+      final data = await tba.get('/event/$eventKey/teams/simple') as List;
+      final existing = {
+        for (final team in await teams.getAll()) team.teamNumber: team,
+      };
+
+      final roster = <Team>[];
+      for (final row in data.cast<Map<String, dynamic>>()) {
+        final number = row['team_number'] as int;
+        final nickname = (row['nickname'] as String?)?.trim();
+        final label =
+            (nickname == null || nickname.isEmpty) ? 'Team $number' : nickname;
+
+        final cached = existing[number];
+        if (cached == null) {
+          roster.add(Team.create(teamNumber: number, nickname: label));
+        } else {
+          cached.nickname = label;
+          roster.add(cached);
+        }
+      }
+      roster.sort((a, b) => a.teamNumber.compareTo(b.teamNumber));
+
+      await teams.upsertAll(roster);
+      await _cacheRoster(eventKey, roster);
+      return roster;
+    } catch (_) {
+      return _cachedTeams(eventKey);
+    }
+  }
+
+  Future<void> _cacheRoster(String eventKey, List<Team> roster) async {
+    final cached = await events.getByKey(eventKey);
+    var name = cached?.name;
+    if (name == null) {
+      try {
+        name = await getEventName(eventKey);
+      } catch (_) {
+        name = eventKey;
+      }
+    }
+
+    final event = cached ?? Event.create(eventKey: eventKey, name: name);
+    event.name = name;
+    event.teams = [for (final team in roster) team.teamNumber];
+    await events.upsert(event);
+  }
+
+  Future<List<Team>> _cachedTeams(String eventKey) async {
+    final event = await events.getByKey(eventKey);
+    if (event == null) return const [];
+
+    final roster = <Team>[];
+    for (final number in event.teams) {
+      final team = await teams.getByNumber(number);
+      if (team != null) roster.add(team);
+    }
+    return roster;
   }
 
   /// Builds the per-team strength map used for match prediction, entirely from
