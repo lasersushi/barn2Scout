@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../data/repositories/assignment_repository.dart';
 import '../../../data/repositories/pit_scouting_repository.dart';
 import '../../../data/repositories/schedule_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
 import '../../../data/repositories/sync_repository.dart';
 import '../../../data/repositories/update_repository.dart';
 import '../../auth/cubit/auth_cubit.dart';
+import '../../management/cubit/management_cubit.dart';
+import '../../management/view/management_page.dart';
 import '../../records/view/records_page.dart';
 import '../../schedule/cubit/schedule_cubit.dart';
 import '../../schedule/view/barn2_schedule_page.dart';
@@ -20,7 +23,6 @@ import '../../update/cubit/update_cubit.dart';
 import '../../update/widgets/update_banner.dart';
 import '../cubit/navigation_cubit.dart';
 
-//TODO: Add manager page back in when it's ready
 //TODO: Fix nav bar cramming when past matches is enabled
 
 class AdminShell extends StatefulWidget {
@@ -64,8 +66,8 @@ class _AdminShellState extends State<AdminShell> with WidgetsBindingObserver {
         const OtherTeamSchedulesPage(),
         const TeamsPage(),
         const RecordsPage(),
+        const ManagementPage(),
         const SettingsPage(),
-        // const ManagerPage(), //TODO: Add manager page back in when it's ready
         if (showPast) const PastMatchesPage(),
       ];
 
@@ -85,15 +87,15 @@ class _AdminShellState extends State<AdminShell> with WidgetsBindingObserver {
           selectedIcon: Icon(Icons.groups),
           label: 'Teams',
         ),
-        // const NavigationDestination(
-        //   icon: Icon(Icons.person_outline),
-        //   selectedIcon: Icon(Icons.person),
-        //   label: 'Manager',
-        // ), //TODO: Add manager page back in when it's ready
         const NavigationDestination(
           icon: Icon(Icons.assignment_outlined),
           selectedIcon: Icon(Icons.assignment),
           label: 'Records',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.manage_accounts_outlined),
+          selectedIcon: Icon(Icons.manage_accounts),
+          label: 'Manage',
         ),
         const NavigationDestination(
           icon: Icon(Icons.settings_outlined),
@@ -122,11 +124,19 @@ class _AdminShellState extends State<AdminShell> with WidgetsBindingObserver {
             ctx.read<ScheduleRepository>(),
             ctx.read<ScoutingRepository>(),
             ctx.read<PitScoutingRepository>(),
+            ctx.read<AssignmentRepository>(),
           )..syncNow(),
         ),
         BlocProvider(
           create: (ctx) =>
               UpdateCubit(ctx.read<UpdateRepository>())..init(),
+        ),
+        BlocProvider(
+          create: (ctx) => ManagementCubit(
+            ctx.read<AssignmentRepository>(),
+            ctx.read<ScheduleRepository>(),
+            ctx.read<PitScoutingRepository>(),
+          ),
         ),
       ],
       child: BlocBuilder<SettingsCubit, SettingsState>(

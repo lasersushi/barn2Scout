@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../data/repositories/assignment_repository.dart';
 import '../../../data/repositories/pit_scouting_repository.dart';
 import '../../../data/repositories/schedule_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
@@ -113,6 +114,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             ctx.read<ScheduleRepository>(),
             ctx.read<ScoutingRepository>(),
             ctx.read<PitScoutingRepository>(),
+            ctx.read<AssignmentRepository>(),
           )..syncNow(),
         ),
         BlocProvider(

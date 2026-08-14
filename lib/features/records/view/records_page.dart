@@ -5,10 +5,14 @@ import 'package:intl/intl.dart';
 
 import '../../../data/models/pit_scouting_record.dart';
 import '../../../data/models/scouting_record.dart';
+import '../../../data/repositories/assignment_repository.dart';
 import '../../../data/repositories/pit_scouting_repository.dart';
 import '../../../data/repositories/schedule_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
 import '../../../data/repositories/sync_repository.dart';
+import '../../../data/repositories/team_repository.dart';
+import '../../management/cubit/my_tasks_cubit.dart';
+import '../../management/view/my_tasks_section.dart';
 import '../../scouting/view/pit_form_page.dart';
 import '../../scouting/view/scouting_form_page.dart';
 import '../../auth/cubit/auth_cubit.dart';
@@ -37,6 +41,13 @@ class RecordsPage extends StatelessWidget {
                   ctx.read<PitScoutingRepository>(),
                   ctx.read<ScheduleRepository>(),
                 )..init()),
+        BlocProvider(
+            create: (ctx) => MyTasksCubit(
+                  ctx.read<AssignmentRepository>(),
+                  ctx.read<ScheduleRepository>(),
+                  ctx.read<PitScoutingRepository>(),
+                  ctx.read<TeamRepository>(),
+                )..init()),
       ],
       // Re-detect the comp when the event override changes in Settings —
       // this page lives in an IndexedStack, so it's never rebuilt on its own.
@@ -46,6 +57,7 @@ class RecordsPage extends StatelessWidget {
         listener: (context, _) {
           context.read<RecordsCubit>().init();
           context.read<PitRecordsCubit>().init();
+          context.read<MyTasksCubit>().init();
         },
         child: const _RecordsView(),
       ),
@@ -328,17 +340,31 @@ class _PitRecordsList extends StatelessWidget {
             const Center(child: CircularProgressIndicator()),
           PitRecordsNoEvent() => const _NoEventState(),
           PitRecordsLoaded(:final records) when records.isEmpty =>
-            const Center(
-              child: Text(
-                'No pit records yet.\nTap "Pit Scout" to add one.',
-                textAlign: TextAlign.center,
-              ),
+            const Column(
+              children: [
+                MyTasksSection(),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      'No pit records yet.\nTap "Pit Scout" to add one.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          PitRecordsLoaded(:final records) => ListView.separated(
-              itemCount: records.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
-              itemBuilder: (context, index) =>
-                  _PitRecordTile(record: records[index]),
+          PitRecordsLoaded(:final records) => Column(
+              children: [
+                const MyTasksSection(),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: records.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) =>
+                        _PitRecordTile(record: records[index]),
+                  ),
+                ),
+              ],
             ),
         };
       },

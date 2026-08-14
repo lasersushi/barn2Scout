@@ -36,7 +36,6 @@ class ScheduleRepository {
   final NexusService nexus;
   final SettingsRepository settings;
 
-  /// Isar caches. TBA is the authority; these keep the roster readable offline.
   final EventRepository events;
   final TeamRepository teams;
 

@@ -15,7 +15,15 @@ class IsarService {
   static Future<IsarService> open() async {
     final dir = await getApplicationDocumentsDirectory();
     final isar = await Isar.open(
-      [TeamSchema, FrcMatchSchema, ScoutingRecordSchema, PitScoutingRecordSchema, EventSchema],
+      [
+        TeamSchema,
+        FrcMatchSchema,
+        ScoutingRecordSchema,
+        PitScoutingRecordSchema,
+        EventSchema,
+        PitAssignmentSchema,
+        ScoutProfileSchema,
+      ],
       directory: dir.path,
       name: 'barn2scout',
     );

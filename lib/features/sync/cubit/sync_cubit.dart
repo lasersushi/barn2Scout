@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../data/models/pit_scouting_record.dart';
 import '../../../data/models/scouting_record.dart';
+import '../../../data/repositories/assignment_repository.dart';
 import '../../../data/repositories/pit_scouting_repository.dart';
 import '../../../data/repositories/schedule_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
@@ -31,8 +32,13 @@ class SyncError extends SyncState {
 }
 
 class SyncCubit extends Cubit<SyncState> {
-  SyncCubit(this._sync, this._schedule, this._scouting, this._pitScouting)
-      : super(const SyncIdle()) {
+  SyncCubit(
+    this._sync,
+    this._schedule,
+    this._scouting,
+    this._pitScouting,
+    this._assignments,
+  ) : super(const SyncIdle()) {
     _startPeriodicPull();
     _watchForNewRecords();
     _watchForNewPitRecords();
@@ -42,6 +48,7 @@ class SyncCubit extends Cubit<SyncState> {
   final ScheduleRepository _schedule;
   final ScoutingRepository _scouting;
   final PitScoutingRepository _pitScouting;
+  final AssignmentRepository _assignments;
 
   Timer? _pullTimer;
   StreamSubscription<List<ScoutingRecord>>? _recordSub;
@@ -76,6 +83,7 @@ class SyncCubit extends Cubit<SyncState> {
     try {
       final detected = await _schedule.detectCurrentEvent();
       await _sync.sync(detected.key);
+      await _pullAssignments(detected.key);
       emit(const SyncDone());
     } catch (e) {
       emit(SyncError(e.toString()));
@@ -100,7 +108,13 @@ class SyncCubit extends Cubit<SyncState> {
       await _sync.pullRecords(detected.key);
       await _sync.pullPitRecords(detected.key);
       await _sync.pullPicklists();
+      await _pullAssignments(detected.key);
     } catch (_) {}
+  }
+
+  Future<void> _pullAssignments(String eventKey) async {
+    await _assignments.pullProfiles();
+    await _assignments.pullForEvent(eventKey);
   }
 
   @override
