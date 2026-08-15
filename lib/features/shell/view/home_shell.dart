@@ -70,7 +70,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         const NavigationDestination(
           icon: Icon(Icons.event_outlined),
           selectedIcon: Icon(Icons.event),
-          label: 'My Schedule',
+          label: 'Schedule',
         ),
         const NavigationDestination(
           icon: Icon(Icons.schedule_outlined),
