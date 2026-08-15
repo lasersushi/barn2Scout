@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../data/models/pit_assignment.dart';
 import '../../../data/models/pit_scouting_record.dart';
 import '../../../data/repositories/assignment_repository.dart';
@@ -49,7 +50,9 @@ class MyTasksCubit extends Cubit<MyTasksState> {
       await _recordSub?.cancel();
 
       _assignmentSub = _assignments.watchMine(_eventKey).listen((mine) {
-        _mine = mine;
+        _mine = mine
+            .where((a) => a.teamNumber != AppConfig.myTeamNumber)
+            .toList();
         _emit();
       });
       _recordSub = _pitRecords.watchForEvent(_eventKey).listen((records) {

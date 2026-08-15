@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../data/models/pit_assignment.dart';
 import '../../../data/models/pit_scouting_record.dart';
 import '../../../data/models/scout_profile.dart';
@@ -41,7 +42,10 @@ class ManagementCubit extends Cubit<ManagementState> {
       }
 
       _eventKey = detected.key;
-      _teams = await _schedule.getTeams(_eventKey);
+      final roster = await _schedule.getTeams(_eventKey);
+      _teams = roster
+          .where((t) => t.teamNumber != AppConfig.myTeamNumber)
+          .toList();
 
       try {
         _eventName = await _schedule.getEventName(_eventKey);
