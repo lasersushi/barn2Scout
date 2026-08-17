@@ -63,6 +63,10 @@ lib/
 
 **Rankings / analytics rule:** All objective metrics (OPR, DPR, CCWM, scores, W-L-T) come from TBA only. Human scouting data is qualitative only and must never feed rankings, predictions, or any objective metric.
 
+## First-time setup
+
+`lib/core/config/app_config.dart` doesn't exist in a fresh clone (gitignored — see below). Create it with `myTeamNumber`, `myTeamKey`, `currentEventKey`, TBA/Nexus base URLs + keys, and Supabase URL/anon key before `flutter run` will build. Then `flutter pub get`.
+
 ## AppConfig — update each event
 
 `lib/core/config/app_config.dart` is **gitignored** and holds API keys, Supabase credentials, and `currentEventKey`. Update `currentEventKey` at the start of each competition (e.g. `'2026cacac'`). The schedule auto-detects the active event from TBA; this is the hard fallback.
@@ -84,7 +88,7 @@ Isar cannot store `Map<String, dynamic>` directly. The pattern used everywhere: 
 
 `AuthCubit` wraps Supabase auth. Sign-in is always required on cold start (`_checkSession()` emits `AuthUnauthenticated` unconditionally). Allowed emails: any `@priorypanther.com` address, plus a hardcoded `_adminEmails` set (mentors → `AuthAuthenticatedAdmin`), a hardcoded `_superAdminEmails` set, and any `@prioryca.org` address (both → `AuthAuthenticatedSuperAdmin`). Role membership is checked in `AuthCubit` on every sign-in/sign-up.
 
-`app.dart`'s `_AuthGate` routes on the emitted state: `AuthAuthenticated` → `HomeShell` (regular scouters), `AuthAuthenticatedAdmin` / `AuthAuthenticatedSuperAdmin` → `AdminShell` (currently identical tab set to `HomeShell` minus a still-disabled Manager page — see the `//TODO` in `admin_shell.dart`).
+`app.dart`'s `_AuthGate` routes on the emitted state: `AuthAuthenticated` → `HomeShell` (regular scouters), `AuthAuthenticatedAdmin` / `AuthAuthenticatedSuperAdmin` → `AdminShell` — same tab set as `HomeShell` plus a **Manager** tab (`ManagementPage`) inserted before Settings.
 
 Super admins can call `AuthCubit.deleteUserByEmail()`, which invokes the `delete_user_by_email` Postgres RPC — enforced server-side, not just client-side.
 
@@ -154,6 +158,21 @@ Three sub-tabs in `TeamsPage`:
 2. **Pit Map** (`TeamsCubit`) — Nexus pit location data. Separate from `RatingsCubit`.
 3. **Picklist** (`PicklistCubit`) — also suppressed on past events via the same `EventStatus` check. Tapping a team row opens `TeamDossierSheet` — a bottom sheet showing OPR/DPR/CCWM, ranking, and real match score spread. Entirely TBA-derived; no human scouting feeds it.
 
+## Admin: pit assignments
+
+Admins assign each event's pit-scouting workload across scouts from the **Manager** tab (`AdminShell` only). Two Isar collections back it, both Supabase-synced the same way as scouting records:
+
+- `PitAssignment` — `(eventKey, teamNumber)` unique composite index, `userId` of the assigned scout.
+- `ScoutProfile` — mirrors the Supabase `profiles` table (`userId`, `email`, `displayName`, `role`); `isAdmin` is a derived getter, not stored.
+
+`AssignmentRepository` owns both: `pullForEvent`/`pullProfiles` replace-all-on-refresh from Supabase, `setAssignments` diffs added/removed teams for one scout and upserts/deletes directly against the `pit_assignments` table (push-only — there's no local-first queue like `SyncRepository`'s).
+
+Two cubits read from it, for two different audiences:
+- `ManagementCubit` (`ManagementPage`, admin-only) — full event roster with `ownerOf`/`unassignedTeams`/`assignedCountFor` derived on `ManagementLoaded`, for the assign/reassign UI (`AssignSheet`).
+- `MyTasksCubit` (`MyTasksSection`, embedded in `RecordsPage` for every scouter) — just the signed-in user's assigned teams, cross-referenced against pit records to show a done/not-done checklist.
+
+Both bail to an empty/no-event state via the same `EventStatus.past` check `RatingsCubit` and `PicklistCubit` use (see Teams feature, below).
+
 ## Match prediction system
 
 `MatchPrediction.compute(match, ratings)` is TBA-data-only. Alliance expected score = Σ OPR; P(red wins) via `normalCdf` over margin / spread. Suppressed when OPRs aren't available. `MatchPredictionBar` renders as a color-split bar under each upcoming `MatchTile`.
@@ -181,6 +200,10 @@ Two separate update paths — both are transparent to scouters:
 - Simpler reactive state → `Cubit` (everything else)
 
 `StopwatchCubit` owns the only `dart:async Timer` in the scouting form widgets. `SyncCubit` owns the only `Timer.periodic` in the app.
+
+## Testing
+
+No mocking library — `dev_dependencies` is just `flutter_test`. Repository fakes are hand-written under `test/helpers/` (e.g. `FakeScoutingRepository`): in-memory, implement the real repository class, and `noSuchMethod` throws `UnimplementedError` for any method the test doesn't need. Follow that pattern for new fakes rather than adding `mocktail`/`bloc_test`.
 
 ## Live Activities
 
