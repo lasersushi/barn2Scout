@@ -41,6 +41,15 @@ class SettingsRepository {
 
   bool get showPastMatchesTab => _data['showPastMatchesTab'] as bool? ?? false;
 
+  /// Last event successfully detected from TBA — the offline fallback so the
+  /// app remembers "the comp from the last time we were online" across
+  /// restarts. Stored as raw strings to keep this file decoupled from the
+  /// EventStatus enum.
+  String? get lastDetectedEventKey => _data['lastDetectedEventKey'] as String?;
+
+  String? get lastDetectedEventStatus =>
+      _data['lastDetectedEventStatus'] as String?;
+
   // ── Writes ────────────────────────────────────────────────────────────────
 
   Future<void> setScouterName(String name) =>
@@ -54,6 +63,11 @@ class SettingsRepository {
 
   Future<void> setShowPastMatchesTab(bool value) =>
       _save({'showPastMatchesTab': value});
+
+  Future<void> setLastDetectedEvent(String key, String status) => _save({
+        'lastDetectedEventKey': key,
+        'lastDetectedEventStatus': status,
+      });
 
   Future<void> clearEventOverride() async {
     _data.remove('eventKeyOverride');

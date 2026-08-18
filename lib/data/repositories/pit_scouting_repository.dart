@@ -15,6 +15,14 @@ class PitScoutingRepository {
   Stream<List<PitScoutingRecord>> watchAll() =>
       _records.where().sortByTimestampDesc().watch(fireImmediately: true);
 
+  /// Live stream of one event's pit records, newest first — the Records tab
+  /// only shows the current comp. Unindexed filter; fine at scouting scale.
+  Stream<List<PitScoutingRecord>> watchForEvent(String eventKey) => _records
+      .filter()
+      .eventKeyEqualTo(eventKey)
+      .sortByTimestampDesc()
+      .watch(fireImmediately: true);
+
   Future<List<PitScoutingRecord>> getAll() =>
       _records.where().sortByTimestampDesc().findAll();
 
