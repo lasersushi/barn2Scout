@@ -8,6 +8,8 @@ import '../../../data/repositories/scouting_repository.dart';
 import '../../../data/repositories/sync_repository.dart';
 import '../../../data/repositories/update_repository.dart';
 import '../../auth/cubit/auth_cubit.dart';
+import '../../management/cubit/management_cubit.dart';
+import '../../management/view/management_page.dart';
 import '../../records/view/records_page.dart';
 import '../../schedule/cubit/schedule_cubit.dart';
 import '../../schedule/view/barn2_schedule_page.dart';
@@ -21,14 +23,15 @@ import '../../update/cubit/update_cubit.dart';
 import '../../update/widgets/update_banner.dart';
 import '../cubit/navigation_cubit.dart';
 
-class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+
+class AdminShell extends StatefulWidget {
+  const AdminShell({super.key});
 
   @override
-  State<HomeShell> createState() => _HomeShellState();
+  State<AdminShell> createState() => _AdminShellState();
 }
 
-class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
+class _AdminShellState extends State<AdminShell> with WidgetsBindingObserver {
   DateTime? _pausedAt;
 
   @override
@@ -62,6 +65,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         const OtherTeamSchedulesPage(),
         const TeamsPage(),
         const RecordsPage(),
+        const ManagementPage(),
         const SettingsPage(),
         if (showPast) const PastMatchesPage(),
       ];
@@ -86,6 +90,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           icon: Icon(Icons.assignment_outlined),
           selectedIcon: Icon(Icons.assignment),
           label: 'Records',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.manage_accounts_outlined),
+          selectedIcon: Icon(Icons.manage_accounts),
+          label: 'Manage',
         ),
         const NavigationDestination(
           icon: Icon(Icons.settings_outlined),
@@ -121,48 +130,44 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           create: (ctx) =>
               UpdateCubit(ctx.read<UpdateRepository>())..init(),
         ),
-      ],
-      // Reload the schedule (and Past Matches) whenever the event override
-      // changes, since the pages live in a kept-alive IndexedStack and would
-      // otherwise never re-run their initial load().
-      child: BlocListener<SettingsCubit, SettingsState>(
-        listenWhen: (prev, curr) =>
-            prev.eventKeyOverride != curr.eventKeyOverride,
-        listener: (context, _) => context.read<ScheduleCubit>().load(),
-        child: BlocBuilder<SettingsCubit, SettingsState>(
-          buildWhen: (prev, curr) =>
-              prev.showPastMatchesTab != curr.showPastMatchesTab,
-          builder: (context, settings) {
-            final pages = _buildPages(settings.showPastMatchesTab);
-            final destinations =
-                _buildDestinations(settings.showPastMatchesTab);
-
-            return BlocBuilder<NavigationCubit, int>(
-              builder: (context, rawIndex) {
-                final index = rawIndex.clamp(0, pages.length - 1);
-
-                return Scaffold(
-                  body: Column(
-                    children: [
-                      // Full-APK update prompt; collapses to nothing when
-                      // there is no update activity.
-                      const UpdateBanner(),
-                      Expanded(
-                        child: IndexedStack(index: index, children: pages),
-                      ),
-                    ],
-                  ),
-                  bottomNavigationBar: NavigationBar(
-                    selectedIndex: index,
-                    onDestinationSelected:
-                        context.read<NavigationCubit>().select,
-                    destinations: destinations,
-                  ),
-                );
-              },
-            );
-          },
+        BlocProvider(
+          create: (ctx) => ManagementCubit(
+            ctx.read<AssignmentRepository>(),
+            ctx.read<ScheduleRepository>(),
+            ctx.read<PitScoutingRepository>(),
+          ),
         ),
+      ],
+      child: BlocBuilder<SettingsCubit, SettingsState>(
+        buildWhen: (prev, curr) =>
+            prev.showPastMatchesTab != curr.showPastMatchesTab,
+        builder: (context, settings) {
+          final pages = _buildPages(settings.showPastMatchesTab);
+          final destinations = _buildDestinations(settings.showPastMatchesTab);
+
+          return BlocBuilder<NavigationCubit, int>(
+            builder: (context, rawIndex) {
+              final index = rawIndex.clamp(0, pages.length - 1);
+
+              return Scaffold(
+                body: Column(
+                  children: [
+                    const UpdateBanner(),
+                    Expanded(
+                      child: IndexedStack(index: index, children: pages),
+                    ),
+                  ],
+                ),
+                bottomNavigationBar: NavigationBar(
+                  selectedIndex: index,
+                  onDestinationSelected:
+                      context.read<NavigationCubit>().select,
+                  destinations: destinations,
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

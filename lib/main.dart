@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/config/app_config.dart';
+import 'data/repositories/assignment_repository.dart';
 import 'data/repositories/event_repository.dart';
 import 'data/repositories/match_repository.dart';
 import 'data/repositories/picklist_repository.dart';
@@ -21,7 +22,6 @@ import 'features/settings/cubit/settings_cubit.dart';
 
 //TODO: Look into apple private cloud compute with foundation models from WWDC
 //TODO: Look into on-device AI integrated with gemini spark, or API
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -60,12 +60,15 @@ Future<void> main() async {
         RepositoryProvider(create: (_) => TeamRepository(isar)),
         RepositoryProvider(create: (_) => MatchRepository(isar)),
         RepositoryProvider(create: (_) => EventRepository(isar)),
+        RepositoryProvider(create: (_) => AssignmentRepository(isar)),
         RepositoryProvider(create: (_) => UpdateRepository()),
         RepositoryProvider(
           create: (ctx) => ScheduleRepository(
             tba: TbaService(),
             nexus: NexusService(),
             settings: ctx.read<SettingsRepository>(),
+            events: ctx.read<EventRepository>(),
+            teams: ctx.read<TeamRepository>(),
           ),
         ),
       ],

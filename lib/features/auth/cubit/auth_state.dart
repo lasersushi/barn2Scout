@@ -17,6 +17,16 @@ class AuthAuthenticated extends AuthState {
   final String email;
 }
 
+class AuthAuthenticatedAdmin extends AuthState {
+  const AuthAuthenticatedAdmin(this.email);
+  final String email;
+}
+
+class AuthAuthenticatedSuperAdmin extends AuthState {
+  const AuthAuthenticatedSuperAdmin(this.email);
+  final String email;
+}
+
 class AuthUnauthenticated extends AuthState {
   const AuthUnauthenticated();
 }

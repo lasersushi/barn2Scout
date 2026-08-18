@@ -140,11 +140,175 @@ class SettingsPage extends StatelessWidget {
                 title: const Text('Sign out'),
                 onTap: () => context.read<AuthCubit>().signOut(),
               ),
+              ListTile(
+                leading: const Icon(Icons.timelapse),
+                title: const Text('Set Inactivity timeout'),
+                onTap: () => _showTimeoutDialog(context, settings.logoutTime),
+              ),
+              ListTile(
+                leading: Icon(Icons.delete_forever,
+                    color: Theme.of(context).colorScheme.error),
+                title: Text(
+                  'Delete account',
+                  style:
+                      TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                onTap: () => _deleteAccount(context),
+              ),
+              if (context.read<AuthCubit>().state is AuthAuthenticatedSuperAdmin) ...[
+                _SectionHeader('Super Admin'),
+                ListTile(
+                  leading: Icon(Icons.admin_panel_settings,
+                      color: Theme.of(context).colorScheme.error),
+                  title: Text(
+                    'Delete a user\'s account',
+                    style:
+                        TextStyle(color: Theme.of(context).colorScheme.error),
+                  ),
+                  onTap: () => _deleteUserAccount(context),
+                ),
+              ],
             ],
           );
         },
       ),
     );
+  }
+
+  Future<void> _deleteUserAccount(BuildContext context) async {
+    final controller = TextEditingController();
+    final email = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete a user\'s account'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.emailAddress,
+          decoration: const InputDecoration(
+            labelText: 'Email address',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (email == null || email.isEmpty || !context.mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Are you sure?'),
+        content: Text('This will permanently delete the account for $email.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final error = await context.read<AuthCubit>().deleteUserByEmail(email);
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(error ?? 'Account for $email deleted.'),
+        backgroundColor: error != null
+            ? Theme.of(context).colorScheme.error
+            : Colors.green.shade700,
+      ),
+    );
+  }
+
+  Future<void> _deleteAccount(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This permanently deletes your Barn2Scout account. '
+          'Your scouting records will remain on the server for the team.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
+
+    final error = await context.read<AuthCubit>().deleteAccount();
+    if (error != null && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _showTimeoutDialog(BuildContext context, int logoutTime) async {
+    final controller = TextEditingController(text: logoutTime.toString());
+    final result = await showDialog<int>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Inactivity timeout'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Minutes',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(context).pop(int.tryParse(controller.text)),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && context.mounted) {
+      context.read<SettingsCubit>().setLogoutTime(result);
+    }
   }
 
   Future<void> _changePassword(BuildContext context) async {
@@ -245,7 +409,7 @@ class SettingsPage extends StatelessWidget {
           controller: controller,
           autofocus: true,
           decoration: const InputDecoration(
-            hintText: 'e.g. 2027casvr',
+            hintText: 'e.g. 2026cacac',
             helperText: 'TBA-style event key. Leave blank to auto-detect.',
           ),
         ),

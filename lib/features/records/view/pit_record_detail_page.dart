@@ -5,8 +5,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/utils/qr_record_codec.dart';
 import '../../../data/models/pit_scouting_record.dart';
-import '../../../data/repositories/pit_scouting_repository.dart';
-import '../../settings/cubit/settings_cubit.dart';
+import '../../../data/repositories/sync_repository.dart';
+import '../../auth/cubit/auth_cubit.dart';
 
 class PitRecordDetailPage extends StatelessWidget {
   const PitRecordDetailPage({super.key, required this.record});
@@ -44,8 +44,19 @@ class PitRecordDetailPage extends StatelessWidget {
       ),
     );
     if (confirmed == true && context.mounted) {
-      await context.read<PitScoutingRepository>().deleteByUuid(record.uuid);
-      if (context.mounted) Navigator.of(context).pop();
+      try {
+        await context.read<SyncRepository>().deletePitRecord(record.uuid);
+        if (context.mounted) Navigator.of(context).pop();
+      } catch (_) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Could not delete record. Are you online?'),
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -55,14 +66,13 @@ class PitRecordDetailPage extends StatelessWidget {
     final when =
         DateFormat('MMM d, yyyy · h:mm a').format(record.timestamp);
     final scheme = Theme.of(context).colorScheme;
-    final myName = context.read<SettingsCubit>().state.scouterName;
-    final isMine = record.scouterName == myName && myName.isNotEmpty;
+    final isAdmin = context.read<AuthCubit>().state is AuthAuthenticatedAdmin || context.read<AuthCubit>().state is AuthAuthenticatedSuperAdmin;
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Team ${record.teamNumber} · Pit'),
         actions: [
-          if (isMine)
+          if (isAdmin)
             IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: 'Delete record',

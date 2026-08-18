@@ -13,6 +13,7 @@ class SettingsCubit extends Cubit<SettingsState> {
           themeMode: _repo.themeMode,
           eventKeyOverride: _repo.eventKeyOverride,
           showPastMatchesTab: _repo.showPastMatchesTab,
+          logoutTime: _repo.logoutTime,
         ));
 
   final SettingsRepository _repo;
@@ -35,6 +36,11 @@ class SettingsCubit extends Cubit<SettingsState> {
   Future<void> clearEventOverride() async {
     await _repo.clearEventOverride();
     emit(state.copyWith(clearEventOverride: true));
+  }
+
+  Future<void> setLogoutTime(int minutes) async {
+    await _repo.setLogoutTime(minutes);
+    emit(state.copyWith(logoutTime: minutes));
   }
 
   Future<void> setShowPastMatchesTab(bool value) async {

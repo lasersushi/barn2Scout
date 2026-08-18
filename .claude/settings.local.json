@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter --version)",
+      "Bash(xcodebuild -version)",
+      "Bash(git -C /Users/lucaswalker/barnScout branch -a)",
+      "Bash(flutter analyze *)",
+      "Bash(git ls-remote *)",
+      "Bash(xargs cat)"
+    ]
+  }
+}

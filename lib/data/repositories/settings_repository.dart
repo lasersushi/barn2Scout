@@ -28,13 +28,13 @@ class SettingsRepository {
 
   // ── Getters ───────────────────────────────────────────────────────────────
 
-  String get scouterName => _data['scouterName'] as String? ?? '';
+  String get scouterName => _data['scouterName'] as String? ?? 'J. Doe';
 
   ThemeMode get themeMode => switch (_data['themeMode'] as String?) {
-        'light' => ThemeMode.light,
-        'dark' => ThemeMode.dark,
-        _ => ThemeMode.system,
-      };
+    'light' => ThemeMode.light,
+    'dark' => ThemeMode.dark,
+    _ => ThemeMode.system,
+  };
 
   /// null = auto-detect from TBA.
   String? get eventKeyOverride => _data['eventKeyOverride'] as String?;
@@ -47,6 +47,8 @@ class SettingsRepository {
   /// EventStatus enum.
   String? get lastDetectedEventKey => _data['lastDetectedEventKey'] as String?;
 
+  int get logoutTime => _data['logoutTime'] as int? ?? 180;
+
   String? get lastDetectedEventStatus =>
       _data['lastDetectedEventStatus'] as String?;
 
@@ -55,8 +57,7 @@ class SettingsRepository {
   Future<void> setScouterName(String name) =>
       _save({'scouterName': name.trim()});
 
-  Future<void> setThemeMode(ThemeMode mode) =>
-      _save({'themeMode': mode.name});
+  Future<void> setThemeMode(ThemeMode mode) => _save({'themeMode': mode.name});
 
   Future<void> setEventOverride(String key) =>
       _save({'eventKeyOverride': key.trim()});
@@ -64,14 +65,16 @@ class SettingsRepository {
   Future<void> setShowPastMatchesTab(bool value) =>
       _save({'showPastMatchesTab': value});
 
-  Future<void> setLastDetectedEvent(String key, String status) => _save({
-        'lastDetectedEventKey': key,
-        'lastDetectedEventStatus': status,
-      });
+  Future<void> setLastDetectedEvent(String key, String status) =>
+      _save({'lastDetectedEventKey': key, 'lastDetectedEventStatus': status});
 
   Future<void> clearEventOverride() async {
     _data.remove('eventKeyOverride');
     await (await _file()).writeAsString(jsonEncode(_data));
+  }
+
+  Future<void> setLogoutTime(int minutes) async {
+    _save({'logoutTime': minutes});
   }
 
   // ── Private ───────────────────────────────────────────────────────────────

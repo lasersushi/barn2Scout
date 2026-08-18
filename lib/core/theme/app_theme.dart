@@ -26,7 +26,7 @@ class AppTheme {
       navigationBarTheme: NavigationBarThemeData(
         height: 60,
         labelTextStyle: WidgetStateProperty.all(
-          const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+          const TextStyle(fontSize: 10, fontWeight: FontWeight.w500),
         ),
       ),
     );
