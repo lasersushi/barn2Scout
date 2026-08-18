@@ -23,7 +23,6 @@ import '../../update/cubit/update_cubit.dart';
 import '../../update/widgets/update_banner.dart';
 import '../cubit/navigation_cubit.dart';
 
-//TODO: Fix nav bar cramming when past matches is enabled
 
 class AdminShell extends StatefulWidget {
   const AdminShell({super.key});
