@@ -3,15 +3,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/utils/qr_record_codec.dart';
-import '../../../data/repositories/pit_scouting_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
 
-/// Full-screen camera page that scans QR codes exported by the match and pit
-/// record detail pages.
+/// Full-screen camera page that scans QR codes exported by [RecordDetailPage].
 ///
 /// On a successful scan:
-///   1. Decode via [QrRecordCodec.decodeAny] (match or pit payload)
-///   2. Save to the matching repository (Isar deduplicates on uuid)
+///   1. Decode via [QrRecordCodec.decode]
+///   2. Save via [ScoutingRepository.save] (Isar deduplicates on uuid)
 ///   3. Pop and show a SnackBar confirming success
 ///
 /// Camera permission is requested by mobile_scanner itself when the
@@ -61,28 +59,19 @@ class _QrScanPageState extends State<QrScanPage> {
     await _controller.stop();
 
     try {
-      final payload = QrRecordCodec.decodeAny(raw);
+      final record = QrRecordCodec.decode(raw);
       if (!mounted) return;
-      // The records cubits use Isar stream watchers — they update
-      // automatically when the save fires, so no manual reload is needed.
-      final summary = switch (payload) {
-        MatchQrPayload(:final record) => () async {
-            await context.read<ScoutingRepository>().save(record);
-            return 'Imported Team ${record.teamNumber} · '
-                'Match ${record.matchNumber}';
-          },
-        PitQrPayload(:final record) => () async {
-            await context.read<PitScoutingRepository>().save(record);
-            return 'Imported Team ${record.teamNumber} · Pit';
-          },
-      };
-      final message = await summary();
+      await context.read<ScoutingRepository>().save(record);
       if (!mounted) return;
+      // RecordsCubit uses an Isar stream watcher — it updates automatically
+      // when the save above fires, so no manual reload is needed.
 
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
+          content: Text(
+            'Imported Team ${record.teamNumber} · Match ${record.matchNumber}',
+          ),
           behavior: SnackBarBehavior.floating,
         ),
       );
