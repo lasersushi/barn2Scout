@@ -15,6 +15,13 @@ analyzer:
   # hand-edited and real errors in it surface at build time, so exclude it.
   exclude:
     - "**/*.g.dart"
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 
 linter:
   # The lint rules applied to this project can be customized in the
