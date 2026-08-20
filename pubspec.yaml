@@ -27,7 +27,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # At the next release, set this to match the GitHub release tag (e.g.
 # v26.2.0 → 26.2.0+4) so the in-app update check can compare them. The +N
 # build number must increase with every release.
-version: 26.2.0+4
+version: 26.2.0+5
 
 environment:
   sdk: ^3.12.1
