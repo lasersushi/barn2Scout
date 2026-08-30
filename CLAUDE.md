@@ -204,7 +204,3 @@ Two separate update paths — both are transparent to scouters:
 ## Testing
 
 No mocking library — `dev_dependencies` is just `flutter_test`. Repository fakes are hand-written under `test/helpers/` (e.g. `FakeScoutingRepository`): in-memory, implement the real repository class, and `noSuchMethod` throws `UnimplementedError` for any method the test doesn't need. Follow that pattern for new fakes rather than adding `mocktail`/`bloc_test`.
-
-## Live Activities
-
-iOS Live Activity support is native ActivityKit code under `ios/Barn2LiveActivity` — not the `live_activities` Flutter package, which cannot display pushed/updated data. `lib/features/liveActivity` and `lib/prototype/live_activity` currently exist as empty placeholder directories.
