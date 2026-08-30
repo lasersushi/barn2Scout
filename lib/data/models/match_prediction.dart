@@ -16,6 +16,9 @@ class PredictionConfig {
     this.wWin = 4.0,
     this.fallbackSigma = 25.0,
     this.minMatchesForRealSigma = 3,
+    this.dprAdjClamp = 5.0,
+    this.steadyMax = 0.45,
+    this.variableMax = 0.95,
   });
 
   /// Points added per unit a team's DPR is better (lower) than the event mean.
@@ -33,6 +36,34 @@ class PredictionConfig {
 
   /// Matches a team must have played before we trust its measured spread.
   final int minMatchesForRealSigma;
+
+  /// Hard cap, in points, on how far the DPR term may move a team's picklist
+  /// blend in either direction.
+  ///
+  /// DPR is the noisiest stat in the OPR family and a disabled robot inflates
+  /// it badly — a dead robot plays no defense, so opponents score freely and
+  /// the linear system charges that to the robot that broke. Uncapped, that one
+  /// term outweighed every real signal: at 2026 NorCal DCMP it moved 1678
+  /// (DPR 142 against a 58–111 field) 14 points and dropped them below a team
+  /// they beat on OPR, RP, and official rank alike.
+  ///
+  /// Applied in [TeamStrength.rank] only — [MatchPrediction.compute] is
+  /// deliberately left uncapped for now.
+  final double dprAdjClamp;
+
+  /// Reliability-bucket cutoffs on `contribStd / contribMedian` — the spread of
+  /// a team's implied contribution relative to its own typical output.
+  ///
+  /// Below [steadyMax] is "steady", below [variableMax] is "variable", above is
+  /// "streaky".
+  ///
+  /// Calibrated to the terciles of 2026 NorCal DCMP (`2026cancmp`, 60 teams,
+  /// 136 played matches), whose spreads ran 0.30 to 1.65 with the 33rd and 67th
+  /// percentiles at ~0.47 and ~0.99. Re-check with
+  /// `lib/prototype/rating_calibration.dart` each January — the old 0.12 / 0.22
+  /// pair predated this metric and put every team in one bucket.
+  final double steadyMax;
+  final double variableMax;
 }
 
 const PredictionConfig kPredictionConfig = PredictionConfig();

@@ -275,6 +275,10 @@ class _PickRow extends StatelessWidget {
   /// One-line TBA summary beneath the team name.
   String _miniStats(TeamRating r) {
     final parts = <String>[
+      // Median implied contribution — the number the rating is actually built
+      // on. Shown beside OPR so a gap between the two is visible rather than
+      // looking like the rating is wrong.
+      if (r.contribMedian != null) 'CON ${r.contribMedian!.toStringAsFixed(0)}',
       'OPR ${r.opr.toStringAsFixed(0)}',
       'DPR ${r.dpr.toStringAsFixed(0)}',
     ];

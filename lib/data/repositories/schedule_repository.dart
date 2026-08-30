@@ -308,13 +308,32 @@ class ScheduleRepository {
       // rankings unavailable — leave avgRp/winRate/rank null.
     }
 
-    // 3 — per-team alliance-score samples from played matches.
+    // 3 — per-team samples from played matches. Two of them: the raw alliance
+    //     score (MatchPrediction reads its std as an alliance-level sigma) and
+    //     the implied contribution (robust, per-robot — see [TeamRating]).
+    final meanOpr = oprs.isEmpty
+        ? 0.0
+        : oprs.values.map((v) => (v as num).toDouble()).reduce((a, b) => a + b) /
+            oprs.length;
+    double oprOf(String teamKey) =>
+        (oprs[teamKey] as num?)?.toDouble() ?? meanOpr;
+
     final samples = <int, List<double>>{};
+    final contribs = <int, List<double>>{};
     void collect(List<String> keys, int? score) {
       if (score == null) return;
       for (final k in keys) {
         final n = int.tryParse(TbaMatch.displayNumber(k));
-        if (n != null) (samples[n] ??= []).add(score.toDouble());
+        if (n == null) continue;
+        (samples[n] ??= []).add(score.toDouble());
+        // Strip out what the partners were expected to score; the remainder is
+        // this robot's apparent output. Unrated partners fall back to the event
+        // mean, so a team TBA hasn't rated never produces a wild value.
+        var partners = 0.0;
+        for (final other in keys) {
+          if (other != k) partners += oprOf(other);
+        }
+        (contribs[n] ??= []).add(score.toDouble() - partners);
       }
     }
 
@@ -331,6 +350,7 @@ class ScheduleRepository {
       if (n == null) continue;
       final xs = samples[n] ?? const <double>[];
       final stats = _meanStd(xs);
+      final contrib = _contribStats(contribs[n] ?? const <double>[]);
       final r = ranks[n];
       out[n] = TeamRating(
         team: n,
@@ -346,9 +366,48 @@ class ScheduleRepository {
         scoreMean: stats.mean,
         scoreStd: stats.std,
         matchesPlayed: xs.length,
+        contribMedian: contrib.median,
+        contribStd: contrib.std,
+        lowMatchCount: contrib.lowCount,
       );
     }
     return out;
+  }
+
+  /// Median, sample std, and low-outlier count of one team's implied
+  /// contributions.
+  ///
+  /// The outlier test deliberately uses a MAD-derived sigma rather than the
+  /// sample std: the dead matches we're hunting inflate the sample std, which
+  /// would widen the threshold enough to hide them.
+  ({double? median, double? std, int? lowCount}) _contribStats(
+      List<double> xs) {
+    if (xs.isEmpty) return (median: null, std: null, lowCount: null);
+    final median = _median(xs);
+    if (xs.length < 2) return (median: median, std: null, lowCount: null);
+
+    final std = _meanStd(xs).std;
+    final mad = _median([for (final x in xs) (x - median).abs()]);
+    // 1.4826 · MAD is the consistent estimator of σ for normal data.
+    final robustSigma = mad > 1e-9 ? 1.4826 * mad : (std ?? 0.0);
+    if (robustSigma <= 1e-9) {
+      return (median: median, std: std, lowCount: 0);
+    }
+    final floor = median - 2 * robustSigma;
+    return (
+      median: median,
+      std: std,
+      lowCount: xs.where((x) => x < floor).length,
+    );
+  }
+
+  /// Median of a non-empty [xs].
+  double _median(List<double> xs) {
+    final sorted = [...xs]..sort();
+    final mid = sorted.length ~/ 2;
+    return sorted.length.isOdd
+        ? sorted[mid]
+        : (sorted[mid - 1] + sorted[mid]) / 2;
   }
 
   /// Sample mean + std (Bessel-corrected) of [xs]. std is null below 2 samples.
