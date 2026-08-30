@@ -308,13 +308,32 @@ class ScheduleRepository {
       // rankings unavailable — leave avgRp/winRate/rank null.
     }
 
-    // 3 — per-team alliance-score samples from played matches.
+    // 3 — per-team samples from played matches. Two of them: the raw alliance
+    //     score (MatchPrediction reads its std as an alliance-level sigma) and
+    //     the implied contribution (robust, per-robot — see [TeamRating]).
+    final meanOpr = oprs.isEmpty
+        ? 0.0
+        : oprs.values.map((v) => (v as num).toDouble()).reduce((a, b) => a + b) /
+            oprs.length;
+    double oprOf(String teamKey) =>
+        (oprs[teamKey] as num?)?.toDouble() ?? meanOpr;
+
     final samples = <int, List<double>>{};
+    final contribs = <int, List<double>>{};
     void collect(List<String> keys, int? score) {
       if (score == null) return;
       for (final k in keys) {
         final n = int.tryParse(TbaMatch.displayNumber(k));
-        if (n != null) (samples[n] ??= []).add(score.toDouble());
+        if (n == null) continue;
+        (samples[n] ??= []).add(score.toDouble());
+        // Strip out what the partners were expected to score; the remainder is
+        // this robot's apparent output. Unrated partners fall back to the event
+        // mean, so a team TBA hasn't rated never produces a wild value.
+        var partners = 0.0;
+        for (final other in keys) {
+          if (other != k) partners += oprOf(other);
+        }
+        (contribs[n] ??= []).add(score.toDouble() - partners);
       }
     }
 
@@ -324,13 +343,25 @@ class ScheduleRepository {
       collect(m.blueTeams, m.blueScore);
     }
 
-    // 4 — merge into one rating per TBA-rated team.
+    // 4 — per-team contribution median/std, then the event's own noise floor.
+    //     The floor has to be event-wide, so it's computed before the merge.
+    final contribStats = <int, ({double? median, double? std})>{};
+    for (final e in contribs.entries) {
+      contribStats[e.key] =
+          (median: _median(e.value), std: _meanStd(e.value).std);
+    }
+    final allStds =
+        contribStats.values.map((s) => s.std).whereType<double>().toList();
+    final eventStd = allStds.isEmpty ? 0.0 : _median(allStds);
+
+    // 5 — merge into one rating per TBA-rated team.
     final out = <int, TeamRating>{};
     for (final entry in oprs.entries) {
       final n = int.tryParse(TbaMatch.displayNumber(entry.key));
       if (n == null) continue;
       final xs = samples[n] ?? const <double>[];
       final stats = _meanStd(xs);
+      final contrib = contribStats[n];
       final r = ranks[n];
       out[n] = TeamRating(
         team: n,
@@ -346,9 +377,46 @@ class ScheduleRepository {
         scoreMean: stats.mean,
         scoreStd: stats.std,
         matchesPlayed: xs.length,
+        contribMedian: contrib?.median,
+        contribStd: contrib?.std,
+        lowMatchCount: _lowCount(
+            contribs[n] ?? const <double>[], contrib?.median, eventStd),
       );
     }
     return out;
+  }
+
+  /// How many typical swings a robot has to lose before the match counts as
+  /// "it wasn't working".
+  static const double _lowSwings = 2.0;
+
+  /// Matches where a robot's output collapsed: more than [_lowSwings] × the
+  /// *event's* median contribution std below its own median.
+  ///
+  /// The yardstick is deliberately event-wide rather than per-team. Scaling by
+  /// a team's own sigma fails twice over: that sigma is inflated by the very
+  /// matches being hunted, and it ranges 48-133 points across a field for
+  /// reasons (partner-OPR estimation error) that have nothing to do with
+  /// reliability, so identical collapses register differently team to team.
+  ///
+  /// Sizing, from 2026 NorCal DCMP: median contribution std 75.4, so the
+  /// threshold is a 151-point drop. 1678 (median 228) flags exactly its two
+  /// dead matches at 71 and 73 and leaves the next one up at 137 alone, while
+  /// a team whose median is below 151 can never flag — correctly, since it has
+  /// no room to fall that far.
+  int? _lowCount(List<double> xs, double? median, double eventStd) {
+    if (xs.length < 2 || median == null || eventStd <= 1e-9) return null;
+    final floor = median - _lowSwings * eventStd;
+    return xs.where((x) => x < floor).length;
+  }
+
+  /// Median of a non-empty [xs].
+  double _median(List<double> xs) {
+    final sorted = [...xs]..sort();
+    final mid = sorted.length ~/ 2;
+    return sorted.length.isOdd
+        ? sorted[mid]
+        : (sorted[mid - 1] + sorted[mid]) / 2;
   }
 
   /// Sample mean + std (Bessel-corrected) of [xs]. std is null below 2 samples.

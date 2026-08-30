@@ -56,6 +56,14 @@ class TeamDossierSheet extends StatelessWidget {
     String num1(double? v) => v == null ? '—' : v.toStringAsFixed(1);
     String pct(double? v) => v == null ? '—' : '${(v * 100).toStringAsFixed(0)}%';
 
+    // Median implied contribution ± its spread — the robust per-robot figure
+    // the picklist rating is built on, as opposed to the alliance-wide score
+    // shown in 'Avg match score' below.
+    final contribSummary = r.contribMedian == null
+        ? '—'
+        : '${r.contribMedian!.toStringAsFixed(0)}'
+            '${r.contribStd == null ? '' : ' ± ${r.contribStd!.toStringAsFixed(0)}'}';
+
     final scoreSpread = r.scoreMean == null
         ? '—'
         : '${r.scoreMean!.toStringAsFixed(0)}'
@@ -172,6 +180,10 @@ class TeamDossierSheet extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 12),
+                      _StatRow('Typical contribution', contribSummary),
+                      if (r.lowMatchCount != null && r.lowMatchCount! > 0)
+                        _StatRow('Matches below baseline',
+                            '${r.lowMatchCount} of ${r.matchesPlayed}'),
                       _StatRow('OPR (offense)', num1(r.opr)),
                       _StatRow('DPR (defense)', num1(r.dpr)),
                       _StatRow('CCWM (net contribution)', num1(r.ccwm)),

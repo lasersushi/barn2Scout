@@ -17,6 +17,9 @@ class TeamRating {
     this.scoreMean,
     this.scoreStd,
     this.matchesPlayed = 0,
+    this.contribMedian,
+    this.contribStd,
+    this.lowMatchCount,
   });
 
   final int team;
@@ -55,6 +58,25 @@ class TeamRating {
 
   /// How many played matches fed [scoreMean] / [scoreStd].
   final int matchesPlayed;
+
+  // ── Implied contribution ──────────────────────────────────────────────────
+  //
+  // Per match: `allianceScore - Σ(OPR of the other two alliance members)`, i.e.
+  // what this robot appears to have put on the board that match. Unlike OPR —
+  // a least-squares fit with a breakdown point of zero — the *median* of these
+  // is unmoved by a handful of matches where the robot was disabled.
+
+  /// Median implied contribution across played matches. Null below 1 match.
+  final double? contribMedian;
+
+  /// Sample std of the implied contributions. Deliberately *not* robust: a team
+  /// with dead matches genuinely is inconsistent, and the reliability bucket
+  /// should say so. Null below 2 matches.
+  final double? contribStd;
+
+  /// Matches where output collapsed by more than two of the event's typical
+  /// swings — the "the robot wasn't working" count. Null below 2 matches.
+  final int? lowMatchCount;
 
   /// W-L-T formatted as "8-2-0", or null if record not yet available.
   String? get record {
