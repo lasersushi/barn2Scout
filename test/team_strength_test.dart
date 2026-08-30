@@ -42,14 +42,14 @@ void main() {
           avgRp: 2.2,
           winRate: 0.8,
           contribMedian: 42,
-          contribStd: 25),
+          contribStd: 12),
       9999: _r(9999,
           opr: 10,
           dpr: 30,
           avgRp: 1.0,
           winRate: 0.2,
           contribMedian: 9,
-          contribStd: 12),
+          contribStd: 30),
       // No ranking data, no matches played, no contribution → falls back to
       // OPR for the base and yields no bucket.
       4414: _r(4414, opr: 25, dpr: 25, matchesPlayed: 0),
@@ -77,12 +77,28 @@ void main() {
 
     test('reliability bucket spreads across all three values', () {
       final byTeam = {for (final s in TeamStrength.rank(ratings)) s.team: s};
-      // meanContrib = 32.33, floor = 8.08. Cutoffs are 0.45 / 0.95, the
-      // terciles measured at 2026 NorCal DCMP.
-      expect(byTeam[254]!.reliabilityBucket, 0); // 6/46  = 0.13 steady
-      expect(byTeam[1678]!.reliabilityBucket, 1); // 25/42 = 0.60 variable
-      expect(byTeam[9999]!.reliabilityBucket, 2); // 12/9  = 1.33 streaky
+      // Stability = std/sqrt(median): 0.88, 1.85, 10.0 → field median 1.85.
+      // Cutoffs 0.90 / 1.20.
+      expect(byTeam[254]!.reliabilityBucket, 0); // 0.88/1.85 = 0.48 steady
+      expect(byTeam[1678]!.reliabilityBucket, 1); // 1.85/1.85 = 1.00 variable
+      expect(byTeam[9999]!.reliabilityBucket, 2); // 10.0/1.85 = 5.40 streaky
       expect(byTeam[4414]!.reliabilityBucket, isNull); // no matches played
+    });
+
+    // Raw swing magnitude must not decide the bucket. Comparing bare stds
+    // marked every big scorer streaky — 254 was flagged at 2026 NorCal DCMP
+    // despite a 100% win rate — because contribution std grows with output.
+    // Here the big scorer swings twice as far in absolute points (80 vs 40)
+    // and must still read steadier, because 80 on a 400 median is proportion-
+    // ally calm while 40 on a 25 median is not.
+    test('a big scorer is not streaky merely for swinging more points', () {
+      final mixed = {
+        1: _r(1, opr: 400, dpr: 50, contribMedian: 400, contribStd: 80),
+        2: _r(2, opr: 25, dpr: 50, contribMedian: 25, contribStd: 40),
+      };
+      final byTeam = {for (final s in TeamStrength.rank(mixed)) s.team: s};
+      expect(byTeam[1]!.reliabilityBucket, 0); // (80/20)/6.0 = 0.67 steady
+      expect(byTeam[2]!.reliabilityBucket, 2); // (40/5)/6.0  = 1.33 streaky
     });
 
     test('bucket is null below the minimum match count', () {

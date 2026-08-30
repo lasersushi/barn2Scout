@@ -51,11 +51,10 @@ class TeamStrength {
     final meanDpr = mean(all.map((r) => r.dpr), 0);
     final meanRp = mean(all.map((r) => r.avgRp).whereType<double>(), 0);
 
-    // Floor for the reliability denominator, so a team whose implied
-    // contribution sits near zero can't divide its way to an infinite spread.
-    final meanContrib =
-        mean(all.map((r) => r.contribMedian).whereType<double>(), 0);
-    final contribFloor = (meanContrib * 0.25).abs();
+    // Reliability denominator: the typical *stabilised* swing at this event.
+    // See [_stability] and [_bucket].
+    final stabilities = all.map(_stability).whereType<double>().toList();
+    final medianStability = stabilities.isEmpty ? 0.0 : _median(stabilities);
 
     double dprAdj(TeamRating r) => (config.wDef * (meanDpr - r.dpr))
         .clamp(-config.dprAdjClamp, config.dprAdjClamp)
@@ -69,35 +68,68 @@ class TeamStrength {
               dprAdj(r) +
               config.wRp * ((r.avgRp ?? meanRp) - meanRp) +
               config.wWin * ((r.winRate ?? 0.5) - 0.5),
-          reliabilityBucket: _bucket(r, config, contribFloor),
+          reliabilityBucket: _bucket(r, config, medianStability),
         ),
     ]..sort((a, b) => b.blend.compareTo(a.blend));
     return out;
   }
 
-  /// Consistency measured as the spread of a team's implied contribution
-  /// relative to its own typical output.
+  /// Median of a non-empty [xs].
+  static double _median(List<double> xs) {
+    final sorted = [...xs]..sort();
+    final mid = sorted.length ~/ 2;
+    return sorted.length.isOdd
+        ? sorted[mid]
+        : (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+
+  /// A team's match-to-match swing, rescaled so it can be compared across
+  /// robots of wildly different output.
   ///
-  /// The old version divided the *alliance* score's std by the *alliance*
-  /// score's mean, which mostly measured which partners a team happened to
-  /// draw, and flattered high-OPR teams by handing them a bigger denominator.
-  /// At 2026 NorCal DCMP that put 14 of 15 teams in the same bucket.
+  /// Contribution std grows with how much a robot scores — measured at 2026
+  /// NorCal DCMP, teams above 200 median contribution averaged 99 points of
+  /// std against 66 for teams below 60. Dividing by `sqrt(median)` is the
+  /// standard variance-stabilising correction for that: without it, comparing
+  /// raw stds marks every big scorer streaky purely for being a big scorer.
+  ///
+  /// Null when the team has no contribution data, or a non-positive median
+  /// (nothing meaningful to be consistent *about*).
+  static double? _stability(TeamRating r) {
+    final median = r.contribMedian;
+    final std = r.contribStd;
+    if (median == null || std == null || median <= 1e-9) return null;
+    return std / math.sqrt(median);
+  }
+
+  /// Consistency: how a team's stabilised swing compares to a typical robot's
+  /// at the same event. 1.0 is exactly average.
+  ///
+  /// Three earlier versions all ended up re-measuring team strength instead of
+  /// consistency, which is the failure mode to watch for here:
+  ///
+  /// * `allianceStd / allianceMean` mostly measured which partners a team drew,
+  ///   and gave high-OPR teams a bigger denominator so they looked steadier —
+  ///   14 of 15 teams landed in one bucket.
+  /// * `contribStd / contribMedian` inverted that bias, collapsing to roughly
+  ///   `1 / strength` and marking every weak team streaky.
+  /// * `contribStd / eventMedianStd` inverted it again, marking every *strong*
+  ///   team streaky — 254 was flagged despite a 100% win rate.
+  ///
+  /// [PredictionConfig.steadyMax] / [PredictionConfig.variableMax] hold the
+  /// cutoffs.
   static int? _bucket(
     TeamRating r,
     PredictionConfig config,
-    double contribFloor,
+    double medianStability,
   ) {
-    final median = r.contribMedian;
-    final std = r.contribStd;
-    if (median == null ||
-        std == null ||
+    final stability = _stability(r);
+    if (stability == null ||
+        medianStability <= 1e-9 ||
         r.matchesPlayed < config.minMatchesForRealSigma) {
       return null; // not enough match data to judge consistency
     }
-    final denom = math.max(median, contribFloor);
-    if (denom <= 1e-9) return null;
 
-    final spread = std / denom;
+    final spread = stability / medianStability;
     if (spread < config.steadyMax) return 0;
     if (spread < config.variableMax) return 1;
     return 2;

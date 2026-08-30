@@ -17,8 +17,8 @@ class PredictionConfig {
     this.fallbackSigma = 25.0,
     this.minMatchesForRealSigma = 3,
     this.dprAdjClamp = 5.0,
-    this.steadyMax = 0.45,
-    this.variableMax = 0.95,
+    this.steadyMax = 0.90,
+    this.variableMax = 1.20,
   });
 
   /// Points added per unit a team's DPR is better (lower) than the event mean.
@@ -51,17 +51,16 @@ class PredictionConfig {
   /// deliberately left uncapped for now.
   final double dprAdjClamp;
 
-  /// Reliability-bucket cutoffs on `contribStd / contribMedian` — the spread of
-  /// a team's implied contribution relative to its own typical output.
+  /// Reliability-bucket cutoffs on a team's stabilised swing relative to the
+  /// field's — see `TeamStrength._stability`. 1.0 is exactly average.
   ///
   /// Below [steadyMax] is "steady", below [variableMax] is "variable", above is
   /// "streaky".
   ///
   /// Calibrated to the terciles of 2026 NorCal DCMP (`2026cancmp`, 60 teams,
-  /// 136 played matches), whose spreads ran 0.30 to 1.65 with the 33rd and 67th
-  /// percentiles at ~0.47 and ~0.99. Re-check with
-  /// `lib/prototype/rating_calibration.dart` each January — the old 0.12 / 0.22
-  /// pair predated this metric and put every team in one bucket.
+  /// 136 played matches), which fell at 0.90 and 1.18 and split the field
+  /// 20/21/19. Re-check each January with
+  /// `lib/prototype/rating_calibration.dart`.
   final double steadyMax;
   final double variableMax;
 }

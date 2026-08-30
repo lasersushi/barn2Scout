@@ -74,8 +74,8 @@ class TeamRating {
   /// should say so. Null below 2 matches.
   final double? contribStd;
 
-  /// Matches sitting more than 2 robust sigma (MAD-derived) below
-  /// [contribMedian] — the "the robot wasn't working" count. Null below 2.
+  /// Matches where output collapsed by more than two of the event's typical
+  /// swings — the "the robot wasn't working" count. Null below 2 matches.
   final int? lowMatchCount;
 
   /// W-L-T formatted as "8-2-0", or null if record not yet available.

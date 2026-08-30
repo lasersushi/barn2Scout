@@ -4,8 +4,9 @@
 //
 // Prints the distribution of implied contribution across one event so the
 // reliability-bucket constants (PredictionConfig.steadyMax / .variableMax) can
-// be picked from real data instead of guessed. The previous 0.12 / 0.22 pair
-// was fitted against a different metric and put 14 of 15 teams in one bucket.
+// be picked from real data instead of guessed. `spread` is a team's stabilised
+// swing — std/sqrt(median) — over the field's median of the same, so 1.00 is an
+// exactly average robot and the cutoffs sit either side of it.
 //
 // The contribution maths below intentionally MIRRORS
 // ScheduleRepository.fetchTeamRatings — this file is never imported by real
@@ -25,12 +26,15 @@ const String _eventKey = '2026cancmp';
 /// Printed match-by-match so individual dead matches are visible.
 const int _focusTeam = 1678;
 
+/// Candidate low-match thresholds, in event-median-std units, to compare.
+const List<double> _lowSwingCandidates = [1.5, 2.0, 2.5, 3.0];
+
 /// Candidate (steadyMax, variableMax) pairs to preview the bucket split for.
 const List<(double, double)> _candidates = [
-  (0.12, 0.22), // the pre-2026 constants, for comparison
-  (0.40, 0.85),
-  (0.45, 0.95), // current values in PredictionConfig
-  (0.50, 1.05),
+  (0.85, 1.10),
+  (0.90, 1.20), // current values in PredictionConfig
+  (0.95, 1.25),
+  (1.00, 1.35),
 ];
 
 void main() => runApp(const _CalibrationApp());
@@ -75,15 +79,13 @@ class _Row {
   late final double median = _median(contribs);
   late final double? std = _std(contribs);
 
-  /// MAD-derived sigma, matching the low-match test in ScheduleRepository.
-  late final int lowCount = () {
-    if (contribs.length < 2) return 0;
-    final mad = _median([for (final x in contribs) (x - median).abs()]);
-    final sigma = mad > 1e-9 ? 1.4826 * mad : (std ?? 0.0);
-    if (sigma <= 1e-9) return 0;
-    final floor = median - 2 * sigma;
+  /// Matches more than [k] event-median swings below this team's own median —
+  /// mirrors ScheduleRepository._lowCount.
+  int lowCount(double eventStd, double k) {
+    if (contribs.length < 2 || eventStd <= 1e-9) return 0;
+    final floor = median - k * eventStd;
     return contribs.where((x) => x < floor).length;
-  }();
+  }
 }
 
 Future<String> _run() async {
@@ -138,26 +140,35 @@ Future<String> _run() async {
   }
   rows.sort((a, b) => b.median.compareTo(a.median));
 
-  final meanContrib =
-      rows.map((r) => r.median).reduce((a, b) => a + b) / rows.length;
-  final floor = (meanContrib * 0.25).abs();
+  // Mirrors TeamStrength._stability: std/sqrt(median) so big scorers aren't
+  // marked streaky purely for scoring big.
+  final stabilities = [
+    for (final r in rows)
+      if (r.std != null && r.median > 1e-9) r.std! / math.sqrt(r.median)
+  ];
+  final medianStability = stabilities.isEmpty ? 0.0 : _median(stabilities);
+  final allStds = [for (final r in rows) if (r.std != null) r.std!];
+  final medianStd = allStds.isEmpty ? 0.0 : _median(allStds);
 
   b.writeln('event $_eventKey · $played played matches · ${rows.length} teams');
-  b.writeln('mean contribution ${meanContrib.toStringAsFixed(1)}  '
-      'floor ${floor.toStringAsFixed(1)}');
+  b.writeln('median contribution std ${medianStd.toStringAsFixed(1)} '
+      '(low-match yardstick)');
+  b.writeln('median stability ${medianStability.toStringAsFixed(2)} '
+      '(reliability denominator)');
   b.writeln('');
   b.writeln('team    OPR    DPR    CON    STD  spread  low');
   b.writeln('-' * 48);
   for (final r in rows) {
-    final denom = math.max(r.median, floor);
-    final spread = (r.std == null || denom <= 1e-9) ? null : r.std! / denom;
+    final spread = (r.std == null || r.median <= 1e-9 || medianStability <= 1e-9)
+        ? null
+        : (r.std! / math.sqrt(r.median)) / medianStability;
     b.writeln('${r.team.toString().padLeft(5)}  '
         '${r.opr.toStringAsFixed(0).padLeft(5)}  '
         '${r.dpr.toStringAsFixed(0).padLeft(5)}  '
         '${r.median.toStringAsFixed(0).padLeft(5)}  '
         '${(r.std?.toStringAsFixed(0) ?? '-').padLeft(5)}  '
         '${(spread?.toStringAsFixed(2) ?? '-').padLeft(6)}  '
-        '${r.lowCount == 0 ? '' : r.lowCount}');
+        '${r.lowCount(medianStd, 2.0) == 0 ? '' : r.lowCount(medianStd, 2.0)}');
   }
 
   b.writeln('');
@@ -165,9 +176,8 @@ Future<String> _run() async {
   for (final (steady, variable) in _candidates) {
     var s = 0, v = 0, k = 0;
     for (final r in rows) {
-      final denom = math.max(r.median, floor);
-      if (r.std == null || denom <= 1e-9) continue;
-      final spread = r.std! / denom;
+      if (r.std == null || r.median <= 1e-9 || medianStability <= 1e-9) continue;
+      final spread = (r.std! / math.sqrt(r.median)) / medianStability;
       if (spread < steady) {
         s++;
       } else if (spread < variable) {
@@ -178,6 +188,27 @@ Future<String> _run() async {
     }
     b.writeln('  ${steady.toStringAsFixed(2)} / '
         '${variable.toStringAsFixed(2)}  →  $s / $v / $k');
+  }
+
+  b.writeln('');
+  b.writeln('low-match rule: teams by flag count, and team $_focusTeam');
+  b.writeln('  k     0    1    2   3+   per-team  $_focusTeam');
+  for (final k in _lowSwingCandidates) {
+    final counts = [for (final r in rows) r.lowCount(medianStd, k)];
+    final z = counts.where((c) => c == 0).length;
+    final one = counts.where((c) => c == 1).length;
+    final two = counts.where((c) => c == 2).length;
+    final more = counts.where((c) => c >= 3).length;
+    final perTeam = counts.reduce((a, b) => a + b) / counts.length;
+    final focusCount =
+        rows.where((r) => r.team == _focusTeam).firstOrNull?.lowCount(
+                medianStd, k) ??
+            0;
+    b.writeln('  ${k.toStringAsFixed(1)}  '
+        '${z.toString().padLeft(3)}  ${one.toString().padLeft(3)}  '
+        '${two.toString().padLeft(3)}  ${more.toString().padLeft(3)}  '
+        '${perTeam.toStringAsFixed(2).padLeft(8)}  '
+        '${focusCount.toString().padLeft(3)}');
   }
 
   final focus = rows.where((r) => r.team == _focusTeam).firstOrNull;

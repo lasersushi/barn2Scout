@@ -343,14 +343,25 @@ class ScheduleRepository {
       collect(m.blueTeams, m.blueScore);
     }
 
-    // 4 — merge into one rating per TBA-rated team.
+    // 4 — per-team contribution median/std, then the event's own noise floor.
+    //     The floor has to be event-wide, so it's computed before the merge.
+    final contribStats = <int, ({double? median, double? std})>{};
+    for (final e in contribs.entries) {
+      contribStats[e.key] =
+          (median: _median(e.value), std: _meanStd(e.value).std);
+    }
+    final allStds =
+        contribStats.values.map((s) => s.std).whereType<double>().toList();
+    final eventStd = allStds.isEmpty ? 0.0 : _median(allStds);
+
+    // 5 — merge into one rating per TBA-rated team.
     final out = <int, TeamRating>{};
     for (final entry in oprs.entries) {
       final n = int.tryParse(TbaMatch.displayNumber(entry.key));
       if (n == null) continue;
       final xs = samples[n] ?? const <double>[];
       final stats = _meanStd(xs);
-      final contrib = _contribStats(contribs[n] ?? const <double>[]);
+      final contrib = contribStats[n];
       final r = ranks[n];
       out[n] = TeamRating(
         team: n,
@@ -366,39 +377,37 @@ class ScheduleRepository {
         scoreMean: stats.mean,
         scoreStd: stats.std,
         matchesPlayed: xs.length,
-        contribMedian: contrib.median,
-        contribStd: contrib.std,
-        lowMatchCount: contrib.lowCount,
+        contribMedian: contrib?.median,
+        contribStd: contrib?.std,
+        lowMatchCount: _lowCount(
+            contribs[n] ?? const <double>[], contrib?.median, eventStd),
       );
     }
     return out;
   }
 
-  /// Median, sample std, and low-outlier count of one team's implied
-  /// contributions.
-  ///
-  /// The outlier test deliberately uses a MAD-derived sigma rather than the
-  /// sample std: the dead matches we're hunting inflate the sample std, which
-  /// would widen the threshold enough to hide them.
-  ({double? median, double? std, int? lowCount}) _contribStats(
-      List<double> xs) {
-    if (xs.isEmpty) return (median: null, std: null, lowCount: null);
-    final median = _median(xs);
-    if (xs.length < 2) return (median: median, std: null, lowCount: null);
+  /// How many typical swings a robot has to lose before the match counts as
+  /// "it wasn't working".
+  static const double _lowSwings = 2.0;
 
-    final std = _meanStd(xs).std;
-    final mad = _median([for (final x in xs) (x - median).abs()]);
-    // 1.4826 · MAD is the consistent estimator of σ for normal data.
-    final robustSigma = mad > 1e-9 ? 1.4826 * mad : (std ?? 0.0);
-    if (robustSigma <= 1e-9) {
-      return (median: median, std: std, lowCount: 0);
-    }
-    final floor = median - 2 * robustSigma;
-    return (
-      median: median,
-      std: std,
-      lowCount: xs.where((x) => x < floor).length,
-    );
+  /// Matches where a robot's output collapsed: more than [_lowSwings] × the
+  /// *event's* median contribution std below its own median.
+  ///
+  /// The yardstick is deliberately event-wide rather than per-team. Scaling by
+  /// a team's own sigma fails twice over: that sigma is inflated by the very
+  /// matches being hunted, and it ranges 48-133 points across a field for
+  /// reasons (partner-OPR estimation error) that have nothing to do with
+  /// reliability, so identical collapses register differently team to team.
+  ///
+  /// Sizing, from 2026 NorCal DCMP: median contribution std 75.4, so the
+  /// threshold is a 151-point drop. 1678 (median 228) flags exactly its two
+  /// dead matches at 71 and 73 and leaves the next one up at 137 alone, while
+  /// a team whose median is below 151 can never flag — correctly, since it has
+  /// no room to fall that far.
+  int? _lowCount(List<double> xs, double? median, double eventStd) {
+    if (xs.length < 2 || median == null || eventStd <= 1e-9) return null;
+    final floor = median - _lowSwings * eventStd;
+    return xs.where((x) => x < floor).length;
   }
 
   /// Median of a non-empty [xs].
