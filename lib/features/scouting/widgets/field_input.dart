@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../config/field_config.dart';
@@ -46,8 +47,20 @@ class FieldInput extends StatelessWidget {
       case FieldType.text:
         return _TextField(
             config: config, value: (value as String?) ?? '', onChanged: onChanged);
+      case FieldType.number:
+        return _NumberField(
+            config: config, value: value as num?, onChanged: onChanged);
     }
   }
+}
+
+/// Parses a [FieldType.number] field's text. Empty or incomplete input (e.g.
+/// ".") is null; whole numbers stay [int] so they match records saved back when
+/// these fields were counters.
+num? parseNumberInput(String text) {
+  final parsed = num.tryParse(text);
+  if (parsed == null) return null;
+  return parsed == parsed.truncate() ? parsed.toInt() : parsed;
 }
 
 /// Shared card chrome so every field looks consistent.
@@ -218,7 +231,50 @@ class _TextField extends StatelessWidget {
             minLines: 1,
             maxLines: 4,
             decoration: const InputDecoration(border: OutlineInputBorder()),
+            // Multiline return inserts a newline, so on iOS tapping away is
+            // the only way to close the keyboard.
+            onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
             onChanged: onChanged,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NumberField extends StatelessWidget {
+  const _NumberField(
+      {required this.config, required this.value, required this.onChanged});
+
+  final FieldConfig config;
+  final num? value;
+  final ValueChanged<Object?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return _FieldCard(
+      child: Row(
+        children: [
+          Expanded(child: _FieldLabel(config.label)),
+          SizedBox(
+            width: 96,
+            child: TextFormField(
+              initialValue: value?.toString() ?? '',
+              textAlign: TextAlign.center,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*$')),
+              ],
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              // The iOS number pad has no return key to close it.
+              onTapOutside: (_) =>
+                  FocusManager.instance.primaryFocus?.unfocus(),
+              onChanged: (text) => onChanged(parseNumberInput(text)),
+            ),
           ),
         ],
       ),

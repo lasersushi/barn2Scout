@@ -24,6 +24,10 @@ enum FieldType {
 
   /// Free text.
   text,
+
+  /// Typed numeric entry for measurements (weight, dimensions). Starts empty,
+  /// so an unfilled field means "not measured" rather than a fake zero.
+  number,
 }
 
 /// Describes one scouting field as *data*, not code.
@@ -83,6 +87,8 @@ class FieldConfig extends Equatable {
         return options.isNotEmpty ? options.first : null;
       case FieldType.text:
         return '';
+      case FieldType.number:
+        return null;
     }
   }
 
