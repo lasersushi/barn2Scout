@@ -40,13 +40,33 @@ class PitScoutingRepository {
   Future<List<PitScoutingRecord>> getUnsynced() =>
       _records.filter().syncedEqualTo(false).findAll();
 
-  Future<void> markSynced(Iterable<String> uuids) =>
+  Future<void> markSynced(Iterable<String> uuids, {required String userId}) =>
       _isar.writeTxn(() async {
         for (final uuid in uuids) {
           final record =
               await _records.filter().uuidEqualTo(uuid).findFirst();
           if (record != null) {
             record.synced = true;
+            record.userId = userId;
+            await _records.put(record);
+          }
+        }
+      });
+
+  Future<Set<String>> getUuidsMissingUserId() async {
+    final missing =
+        await _records.filter().userIdIsNull().uuidProperty().findAll();
+    return missing.toSet();
+  }
+
+  Future<void> backfillUserIds(Map<String, String> userIdsByUuid) =>
+      _isar.writeTxn(() async {
+        for (final MapEntry(key: uuid, value: userId)
+            in userIdsByUuid.entries) {
+          final record =
+              await _records.filter().uuidEqualTo(uuid).findFirst();
+          if (record != null) {
+            record.userId = userId;
             await _records.put(record);
           }
         }

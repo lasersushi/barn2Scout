@@ -60,7 +60,7 @@ class SyncRepository {
         .toList();
 
     await _client.from('scouting_records').upsert(rows);
-    await _scouting.markSynced(unsynced.map((r) => r.uuid));
+    await _scouting.markSynced(unsynced.map((r) => r.uuid), userId: userId);
   }
 
   /// Deletes a match record from Supabase *and* locally. Deleting locally
@@ -83,10 +83,18 @@ class SyncRepository {
         .eq('event_key', eventKey) as List<dynamic>;
 
     final existing = await _scouting.getAllUuids();
+    final missingUserId = await _scouting.getUuidsMissingUserId();
+    final backfill = <String, String>{};
 
     for (final raw in rows.cast<Map<String, dynamic>>()) {
       final uuid = raw['id'] as String;
-      if (existing.contains(uuid)) continue;
+      final userId = raw['user_id'] as String?;
+      if (existing.contains(uuid)) {
+        if (userId != null && missingUserId.contains(uuid)) {
+          backfill[uuid] = userId;
+        }
+        continue;
+      }
 
       final record = ScoutingRecord.create(
         uuid: uuid,
@@ -100,9 +108,11 @@ class SyncRepository {
         endgameData: (raw['endgame_data'] as Map<String, dynamic>?) ?? {},
         notes: (raw['notes'] as String?) ?? '',
         synced: true,
+        userId: userId,
       );
       await _scouting.save(record);
     }
+    if (backfill.isNotEmpty) await _scouting.backfillUserIds(backfill);
   }
 
   // ── Pit scouting records ──────────────────────────────────────────────────
@@ -127,7 +137,7 @@ class SyncRepository {
         .toList();
 
     await _client.from('pit_scouting_records').upsert(rows);
-    await _pitScouting.markSynced(unsynced.map((r) => r.uuid));
+    await _pitScouting.markSynced(unsynced.map((r) => r.uuid), userId: userId);
   }
 
   /// Deletes a pit record from Supabase *and* locally. See [deleteRecord].
@@ -146,10 +156,18 @@ class SyncRepository {
         .eq('event_key', eventKey) as List<dynamic>;
 
     final existing = await _pitScouting.getAllUuids();
+    final missingUserId = await _pitScouting.getUuidsMissingUserId();
+    final backfill = <String, String>{};
 
     for (final raw in rows.cast<Map<String, dynamic>>()) {
       final uuid = raw['id'] as String;
-      if (existing.contains(uuid)) continue;
+      final userId = raw['user_id'] as String?;
+      if (existing.contains(uuid)) {
+        if (userId != null && missingUserId.contains(uuid)) {
+          backfill[uuid] = userId;
+        }
+        continue;
+      }
 
       final record = PitScoutingRecord.create(
         uuid: uuid,
@@ -160,9 +178,11 @@ class SyncRepository {
         pitData: (raw['pit_data'] as Map<String, dynamic>?) ?? {},
         notes: (raw['notes'] as String?) ?? '',
         synced: true,
+        userId: userId,
       );
       await _pitScouting.save(record);
     }
+    if (backfill.isNotEmpty) await _pitScouting.backfillUserIds(backfill);
   }
 
   // ── Picklists ─────────────────────────────────────────────────────────────

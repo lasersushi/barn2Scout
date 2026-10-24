@@ -59,7 +59,8 @@ const ScoutingRecordSchema = CollectionSchema(
       name: r'timestamp',
       type: IsarType.dateTime,
     ),
-    r'uuid': PropertySchema(id: 10, name: r'uuid', type: IsarType.string),
+    r'userId': PropertySchema(id: 10, name: r'userId', type: IsarType.string),
+    r'uuid': PropertySchema(id: 11, name: r'uuid', type: IsarType.string),
   },
 
   estimateSize: _scoutingRecordEstimateSize,
@@ -142,6 +143,12 @@ int _scoutingRecordEstimateSize(
   bytesCount += 3 + object.notes.length * 3;
   bytesCount += 3 + object.scouterName.length * 3;
   bytesCount += 3 + object.teleopDataJson.length * 3;
+  {
+    final value = object.userId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.uuid.length * 3;
   return bytesCount;
 }
@@ -162,7 +169,8 @@ void _scoutingRecordSerialize(
   writer.writeLong(offsets[7], object.teamNumber);
   writer.writeString(offsets[8], object.teleopDataJson);
   writer.writeDateTime(offsets[9], object.timestamp);
-  writer.writeString(offsets[10], object.uuid);
+  writer.writeString(offsets[10], object.userId);
+  writer.writeString(offsets[11], object.uuid);
 }
 
 ScoutingRecord _scoutingRecordDeserialize(
@@ -183,7 +191,8 @@ ScoutingRecord _scoutingRecordDeserialize(
   object.teamNumber = reader.readLong(offsets[7]);
   object.teleopDataJson = reader.readString(offsets[8]);
   object.timestamp = reader.readDateTime(offsets[9]);
-  object.uuid = reader.readString(offsets[10]);
+  object.userId = reader.readStringOrNull(offsets[10]);
+  object.uuid = reader.readString(offsets[11]);
   return object;
 }
 
@@ -215,6 +224,8 @@ P _scoutingRecordDeserializeProp<P>(
     case 9:
       return (reader.readDateTime(offset)) as P;
     case 10:
+      return (reader.readStringOrNull(offset)) as P;
+    case 11:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -1789,6 +1800,165 @@ extension ScoutingRecordQueryFilter
   }
 
   QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNull(property: r'userId'),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        const FilterCondition.isNotNull(property: r'userId'),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdEqualTo(String? value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(
+          property: r'userId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(
+          include: include,
+          property: r'userId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.lessThan(
+          include: include,
+          property: r'userId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.between(
+          property: r'userId',
+          lower: lower,
+          includeLower: includeLower,
+          upper: upper,
+          includeUpper: includeUpper,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdStartsWith(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.startsWith(
+          property: r'userId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdEndsWith(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.endsWith(
+          property: r'userId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.contains(
+          property: r'userId',
+          value: value,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.matches(
+          property: r'userId',
+          wildcard: pattern,
+          caseSensitive: caseSensitive,
+        ),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'userId', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
+  userIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.greaterThan(property: r'userId', value: ''),
+      );
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterFilterCondition>
   uuidEqualTo(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(
@@ -2073,6 +2243,19 @@ extension ScoutingRecordQuerySortBy
     });
   }
 
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterSortBy> sortByUserId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'userId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterSortBy>
+  sortByUserIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'userId', Sort.desc);
+    });
+  }
+
   QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterSortBy> sortByUuid() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'uuid', Sort.asc);
@@ -2235,6 +2418,19 @@ extension ScoutingRecordQuerySortThenBy
     });
   }
 
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterSortBy> thenByUserId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'userId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterSortBy>
+  thenByUserIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'userId', Sort.desc);
+    });
+  }
+
   QueryBuilder<ScoutingRecord, ScoutingRecord, QAfterSortBy> thenByUuid() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'uuid', Sort.asc);
@@ -2327,6 +2523,14 @@ extension ScoutingRecordQueryWhereDistinct
     });
   }
 
+  QueryBuilder<ScoutingRecord, ScoutingRecord, QDistinct> distinctByUserId({
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'userId', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<ScoutingRecord, ScoutingRecord, QDistinct> distinctByUuid({
     bool caseSensitive = true,
   }) {
@@ -2404,6 +2608,12 @@ extension ScoutingRecordQueryProperty
   QueryBuilder<ScoutingRecord, DateTime, QQueryOperations> timestampProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'timestamp');
+    });
+  }
+
+  QueryBuilder<ScoutingRecord, String?, QQueryOperations> userIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'userId');
     });
   }
 
