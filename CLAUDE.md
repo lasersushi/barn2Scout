@@ -182,6 +182,8 @@ Third tab in `RecordsPage`, backed by `LeaderboardCubit`. Current event only. It
 
 Attribution is by account, not `scouterName`. A synced record counts for its `userId`. An unsynced record counts for the signed-in user (`AssignmentRepository.currentUserId`), because that's who the next push stamps it as. Display names come from `ScoutProfile`, falling back to the latest `scouterName`. XP counts reports filed by *scouters*. It never touches team metrics, so the rankings/analytics rule above still holds.
 
+Admins also get `ScoutXpPage` (Manage tab → "Scout XP"): the same `LeaderboardCubit` built with `includeIdleScouts: true`, so non-admin scouts with no reports show at 0 XP. Admins only appear once they've filed a report.
+
 ## Match prediction system
 
 `MatchPrediction.compute(match, ratings)` is TBA-data-only. Alliance expected score = Σ OPR; P(red wins) via `normalCdf` over margin / spread. Suppressed when OPRs aren't available. `MatchPredictionBar` renders as a color-split bar under each upcoming `MatchTile`.

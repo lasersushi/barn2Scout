@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../data/models/scout_profile.dart';
 import '../cubit/management_cubit.dart';
 import 'assign_sheet.dart';
+import 'scout_xp_page.dart';
 
 class ManagementPage extends StatefulWidget {
   const ManagementPage({super.key});
@@ -65,6 +66,14 @@ class _Roster extends StatelessWidget {
             '${state.eventName}  ·  ${state.eventKey}',
             style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
           ),
+        ),
+
+        ListTile(
+          leading: const Icon(Icons.emoji_events_outlined),
+          title: const Text('Scout XP'),
+          subtitle: const Text('Reports filed and XP earned by each scout'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => ScoutXpPage.push(context),
         ),
 
         const _SectionHeader('Scouts'),

@@ -21,13 +21,17 @@ class LeaderboardCubit extends Cubit<LeaderboardState> {
     this._scouting,
     this._pitScouting,
     this._assignments,
-    this._schedule,
-  ) : super(const LeaderboardLoading());
+    this._schedule, {
+    this.includeIdleScouts = false,
+  }) : super(const LeaderboardLoading());
 
   final ScoutingRepository _scouting;
   final PitScoutingRepository _pitScouting;
   final AssignmentRepository _assignments;
   final ScheduleRepository _schedule;
+
+  /// List scouts with no reports at 0 XP (the admin view).
+  final bool includeIdleScouts;
 
   StreamSubscription<List<ScoutingRecord>>? _matchSub;
   StreamSubscription<List<PitScoutingRecord>>? _pitSub;
@@ -83,6 +87,7 @@ class LeaderboardCubit extends Cubit<LeaderboardState> {
         pitRecords: _pitRecords,
         profiles: _profiles,
         currentUserId: _assignments.currentUserId,
+        includeIdleScouts: includeIdleScouts,
       ),
     ));
   }

@@ -38,7 +38,7 @@ class _Leaderboard extends StatelessWidget {
       itemBuilder: (context, i) {
         if (i == 0) return _MyXpCard(me: state.me);
         if (entries.isEmpty) return const _NoReportsYet();
-        return _LeaderboardRow(entry: entries[i - 1]);
+        return LeaderboardRow(entry: entries[i - 1]);
       },
     );
   }
@@ -161,8 +161,9 @@ class _MyXpCard extends StatelessWidget {
 
 // ── Ranked rows ───────────────────────────────────────────────────────────────
 
-class _LeaderboardRow extends StatelessWidget {
-  const _LeaderboardRow({required this.entry});
+/// One ranked scouter. Shared with the admin Scout XP page.
+class LeaderboardRow extends StatelessWidget {
+  const LeaderboardRow({super.key, required this.entry});
 
   final LeaderboardEntry entry;
 
@@ -176,7 +177,8 @@ class _LeaderboardRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final e = entry;
-    final medal = _medalColors[e.rank];
+    // No medals or rank numbers for scouts who haven't earned any XP.
+    final medal = e.xp > 0 ? _medalColors[e.rank] : null;
 
     return Container(
       color: e.isMe ? cs.primaryContainer.withValues(alpha: 0.30) : null,
@@ -188,7 +190,7 @@ class _LeaderboardRow extends StatelessWidget {
             child: medal != null
                 ? Icon(Icons.military_tech, color: medal, size: 28)
                 : Text(
-                    '${e.rank}',
+                    e.xp > 0 ? '${e.rank}' : '–',
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,

@@ -49,11 +49,12 @@ PitScoutingRecord pit({
       userId: userId,
     );
 
-ScoutProfile profile(String userId, String name) => ScoutProfile.create(
+ScoutProfile profile(String userId, String name, {String role = 'scout'}) =>
+    ScoutProfile.create(
       userId: userId,
       email: '$userId@priorypanther.com',
       displayName: name,
-      role: 'scout',
+      role: role,
     );
 
 class FakeScheduleRepository implements ScheduleRepository {
@@ -229,6 +230,50 @@ void main() {
     });
   });
 
+  group('buildLeaderboard includeIdleScouts', () {
+    final profiles = [
+      profile('a', 'Alex'),
+      profile('b', 'Bo'),
+      profile('m', 'Mentor', role: 'admin'),
+    ];
+
+    test('off by default: only scouts with reports are listed', () {
+      final entries = buildLeaderboard(
+        matchRecords: [match(userId: 'a')],
+        pitRecords: const [],
+        profiles: profiles,
+        currentUserId: null,
+      );
+      expect(entries.map((e) => e.name), ['Alex']);
+    });
+
+    test('lists idle non-admin scouts at 0 XP, below scouts with XP', () {
+      final entries = buildLeaderboard(
+        matchRecords: [match(userId: 'a')],
+        pitRecords: const [],
+        profiles: profiles,
+        currentUserId: null,
+        includeIdleScouts: true,
+      );
+      expect(entries.map((e) => (e.name, e.xp)), [
+        ('Alex', kMatchReportXp),
+        ('Bo', 0),
+      ]);
+    });
+
+    test('an admin who filed a report is listed with their XP', () {
+      final entries = buildLeaderboard(
+        matchRecords: [match(userId: 'm')],
+        pitRecords: const [],
+        profiles: profiles,
+        currentUserId: null,
+        includeIdleScouts: true,
+      );
+      expect(entries.map((e) => e.name), ['Mentor', 'Alex', 'Bo']);
+      expect(entries.first.xp, kMatchReportXp);
+    });
+  });
+
   group('LeaderboardCubit', () {
     test('past event → NoEvent', () async {
       final cubit = LeaderboardCubit(
@@ -266,6 +311,28 @@ void main() {
         ('Me', kMatchReportXp),
       ]);
       expect(loaded.me?.rank, 2);
+      await cubit.close();
+    });
+
+    test('includeIdleScouts lists scouts with no reports', () async {
+      final assignments = FakeAssignmentRepository('me')
+        ..profiles = [profile('a', 'Alex'), profile('b', 'Bo')];
+
+      final cubit = LeaderboardCubit(
+        FakeScoutingRepository()..records = [match(userId: 'a')],
+        FakePitScoutingRepository(),
+        assignments,
+        FakeScheduleRepository(EventStatus.active),
+        includeIdleScouts: true,
+      );
+      await cubit.init();
+      await pumpEventQueue();
+
+      final loaded = cubit.state as LeaderboardLoaded;
+      expect(loaded.entries.map((e) => (e.name, e.xp)), [
+        ('Alex', kMatchReportXp),
+        ('Bo', 0),
+      ]);
       await cubit.close();
     });
   });

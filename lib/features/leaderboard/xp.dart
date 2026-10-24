@@ -82,11 +82,16 @@ class LeaderboardEntry {
 /// A synced record belongs to its [ScoutingRecord.userId]. An unsynced record
 /// belongs to [currentUserId], since that's the id the next push stamps on it.
 /// Synced records with no userId yet are skipped until a pull backfills them.
+///
+/// With [includeIdleScouts], non-admin profiles that haven't filed anything
+/// are listed at 0 XP — the admin view wants the whole roster. Admins still
+/// only appear once they've filed a report.
 List<LeaderboardEntry> buildLeaderboard({
   required List<ScoutingRecord> matchRecords,
   required List<PitScoutingRecord> pitRecords,
   required List<ScoutProfile> profiles,
   required String? currentUserId,
+  bool includeIdleScouts = false,
 }) {
   final totals = <String, _Tally>{};
 
@@ -111,6 +116,12 @@ List<LeaderboardEntry> buildLeaderboard({
       ..xp += xpForPitRecord(r)
       ..pitCount += 1
       ..noteName(r.scouterName, r.timestamp);
+  }
+
+  if (includeIdleScouts) {
+    for (final p in profiles.where((p) => !p.isAdmin)) {
+      totals.putIfAbsent(p.userId, _Tally.new);
+    }
   }
 
   final names = {for (final p in profiles) p.userId: p.displayName};
