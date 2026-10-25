@@ -8,7 +8,9 @@ class AuthCubit extends Cubit<AuthState> {
     _checkSession();
   }
 
-  final _client = Supabase.instance.client;
+  // Lazy so the cubit can be constructed in tests without initializing
+  // Supabase; nothing touches it until a network call is made.
+  late final _client = Supabase.instance.client;
 
   static const _adminEmails = {
     'cstinson29@priorypanther.com',
@@ -50,7 +52,7 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> signIn(String email, String password) async {
     if (!_isAllowedEmail(email) && !_isMentorEmail(email) && !_isSuperAdminEmail(email)) {
       emit(
-        const AuthError(
+        AuthError(
           'Only @priorypanther.com or @prioryca.org accounts are allowed.',
         ),
       );
@@ -71,19 +73,19 @@ class AuthCubit extends Cubit<AuthState> {
                 ? AuthAuthenticatedAdmin(addr)
                 : AuthAuthenticated(addr));
       } else {
-        emit(const AuthError('Sign in failed. Check your credentials.'));
+        emit(AuthError('Sign in failed. Check your credentials.'));
       }
     } on AuthException catch (e) {
       emit(AuthError(e.message));
     } catch (_) {
-      emit(const AuthError('Something went wrong. Check your connection.'));
+      emit(AuthError('Something went wrong. Check your connection.'));
     }
   }
 
   Future<void> signUp(String email, String password) async {
     if (!_isAllowedEmail(email) && !_isMentorEmail(email) && !_isSuperAdminEmail(email)) {
       emit(
-        const AuthError(
+        AuthError(
           'Only @priorypanther.com or @prioryca.org accounts are allowed.',
         ),
       );
@@ -104,12 +106,12 @@ class AuthCubit extends Cubit<AuthState> {
                 ? AuthAuthenticatedAdmin(addr)
                 : AuthAuthenticated(addr));
       } else {
-        emit(const AuthError('Sign up failed. Try a different email.'));
+        emit(AuthError('Sign up failed. Try a different email.'));
       }
     } on AuthException catch (e) {
       emit(AuthError(e.message));
     } catch (_) {
-      emit(const AuthError('Something went wrong. Check your connection.'));
+      emit(AuthError('Something went wrong. Check your connection.'));
     }
   }
 

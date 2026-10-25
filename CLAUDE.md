@@ -37,7 +37,7 @@ Feature-first layout under `lib/features/`. Data layer in `lib/data/`.
 ```
 lib/
   main.dart              # Boots Isar + Supabase, injects all repos, reads settings before runApp
-  app.dart                # MaterialApp + AuthCubit; _AuthGate routes to LoginPage / HomeShell / AdminShell
+  app.dart                # MaterialApp + AuthCubit; AuthGate routes to LoginPage / HomeShell / AdminShell
   core/
     config/app_config.dart  # Team identity + API keys (gitignored — update each event)
     theme/               # AppTheme — seed color 0xFF0060A7 (Barn2 Robotics blue)
@@ -89,7 +89,7 @@ Isar cannot store `Map<String, dynamic>` directly. The pattern used everywhere: 
 
 `AuthCubit` wraps Supabase auth. Sign-in is always required on cold start (`_checkSession()` emits `AuthUnauthenticated` unconditionally). Allowed emails: any `@priorypanther.com` address, plus a hardcoded `_adminEmails` set (mentors → `AuthAuthenticatedAdmin`), a hardcoded `_superAdminEmails` set, and any `@prioryca.org` address (both → `AuthAuthenticatedSuperAdmin`). Role membership is checked in `AuthCubit` on every sign-in/sign-up.
 
-`app.dart`'s `_AuthGate` routes on the emitted state: `AuthAuthenticated` → `HomeShell` (regular scouters), `AuthAuthenticatedAdmin` / `AuthAuthenticatedSuperAdmin` → `AdminShell` — same tab set as `HomeShell` plus a **Manager** tab (`ManagementPage`) inserted before Settings.
+`app.dart`'s `AuthGate` routes on the emitted state (`LoginPage` stays mounted through `AuthLoading` so its error listener survives): `AuthAuthenticated` → `HomeShell` (regular scouters), `AuthAuthenticatedAdmin` / `AuthAuthenticatedSuperAdmin` → `AdminShell` — same tab set as `HomeShell` plus a **Manager** tab (`ManagementPage`) inserted before Settings.
 
 Super admins can call `AuthCubit.deleteUserByEmail()`, which invokes the `delete_user_by_email` Postgres RPC — enforced server-side, not just client-side.
 

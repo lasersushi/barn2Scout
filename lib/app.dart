@@ -24,7 +24,7 @@ class Barn2ScoutApp extends StatelessWidget {
             theme: AppTheme.light,
             darkTheme: AppTheme.dark,
             themeMode: settings.themeMode,
-            home: const _AuthGate(),
+            home: const AuthGate(),
           );
         },
       ),
@@ -32,16 +32,21 @@ class Barn2ScoutApp extends StatelessWidget {
   }
 }
 
-class _AuthGate extends StatelessWidget {
-  const _AuthGate();
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<AuthCubit, AuthState>(
       builder: (context, state) => switch (state) {
-        AuthInitial() || AuthLoading() =>
+        AuthInitial() =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),
-        AuthUnauthenticated() || AuthError() => const LoginPage(),
+        // LoginPage must stay mounted through AuthLoading (it shows its own
+        // button spinner). Swapping it out unmounts its BlocConsumer, and a
+        // fresh listener never fires for the AuthError it mounts into, so
+        // sign-in errors were silently dropped.
+        AuthUnauthenticated() || AuthLoading() || AuthError() =>
+          const LoginPage(),
         AuthAuthenticated() => const HomeShell(),
         AuthAuthenticatedAdmin() => const AdminShell(),
         AuthAuthenticatedSuperAdmin() => const AdminShell(),

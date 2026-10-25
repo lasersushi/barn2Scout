@@ -31,7 +31,10 @@ class AuthUnauthenticated extends AuthState {
   const AuthUnauthenticated();
 }
 
+/// Deliberately not const: Cubit drops an emit identical to the current
+/// state, so a canonicalized `const AuthError(sameMessage)` repeated (e.g.
+/// the wrong domain twice in a row) would never reach the login listener.
 class AuthError extends AuthState {
-  const AuthError(this.message);
+  AuthError(this.message);
   final String message;
 }
