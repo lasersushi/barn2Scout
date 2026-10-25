@@ -51,3 +51,6 @@ lib/core/config/app_config.dart
 android/key.properties
 android/app/*.jks
 android/app/*.keystore
+
+# Claude Code worktrees — separate checkouts, never part of this repo
+.claude/worktrees/
