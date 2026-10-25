@@ -171,7 +171,11 @@ class TeamDossierSheet extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'THE BLUE ALLIANCE',
+                        // Pre-comp: every stat below is from that earlier
+                        // event, not this one.
+                        r.isPreComp
+                            ? 'THE BLUE ALLIANCE · FROM ${r.sourceEventKey!.toUpperCase()}'
+                            : 'THE BLUE ALLIANCE',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
@@ -187,7 +191,11 @@ class TeamDossierSheet extends StatelessWidget {
                       _StatRow('OPR (offense)', num1(r.opr)),
                       _StatRow('DPR (defense)', num1(r.dpr)),
                       _StatRow('CCWM (net contribution)', num1(r.ccwm)),
-                      _StatRow('Event rank', r.rank == null ? '—' : '#${r.rank}'),
+                      _StatRow(
+                          r.isPreComp
+                              ? 'Rank at ${r.sourceEventKey}'
+                              : 'Event rank',
+                          r.rank == null ? '—' : '#${r.rank}'),
                       _StatRow('Avg ranking points', num1(r.avgRp)),
                       _StatRow('Win rate', pct(r.winRate)),
                       _StatRow('Avg match score', scoreSpread),

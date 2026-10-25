@@ -77,6 +77,7 @@ class MatchPrediction {
     required this.redWinPct,
     required this.ratedTeams,
     this.totalTeams = 6,
+    this.preComp = false,
   });
 
   /// Expected alliance scores = sum of member OPRs.
@@ -91,6 +92,10 @@ class MatchPrediction {
   /// averages). Drives the "×/6" confidence note.
   final int ratedTeams;
   final int totalTeams;
+
+  /// True when any rated team's data was borrowed from an earlier event —
+  /// i.e. this event hasn't produced OPRs yet. See [TeamRating.isPreComp].
+  final bool preComp;
 
   /// No prediction worth showing until the event has produced some ratings.
   bool get hasData => ratedTeams > 0;
@@ -130,6 +135,8 @@ class MatchPrediction {
     final typicalSigma =
         realStds.isEmpty ? config.fallbackSigma : meanOf(realStds, config.fallbackSigma);
 
+    var preComp = false;
+
     ({double expected, double adj, double sigma, int rated}) sideOf(
         List<String> teamKeys) {
       var expected = 0.0;
@@ -159,6 +166,7 @@ class MatchPrediction {
             config.wWin * (win - 0.5);
         sigmaSum += sigma;
         if (r != null) rated++;
+        if (r?.isPreComp ?? false) preComp = true;
       }
 
       // Mean (not sum) of the member spreads: each team's measured σ is already
@@ -186,6 +194,7 @@ class MatchPrediction {
       blueScore: blue.expected,
       redWinPct: redWin.clamp(0.0, 1.0),
       ratedTeams: red.rated + blue.rated,
+      preComp: preComp,
     );
   }
 }

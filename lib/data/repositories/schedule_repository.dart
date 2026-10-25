@@ -40,8 +40,9 @@ class ScheduleRepository {
   final EventRepository events;
   final TeamRepository teams;
 
-  /// In-memory cache of the year's events. Fetched once, shared by both detect
-  /// methods so we only hit TBA once even if both are called.
+  /// In-memory cache of this year's and next year's events. Fetched once,
+  /// shared by both detect methods so we only hit TBA once even if both are
+  /// called.
   List<Map<String, dynamic>>? _cachedEvents;
 
   String? _cachedEventKey;
@@ -54,10 +55,21 @@ class ScheduleRepository {
   Future<List<Map<String, dynamic>>> _fetchEvents() async {
     if (_cachedEvents != null) return _cachedEvents!;
     final year = DateTime.now().year;
-    final data = await tba.get(
-      '/team/${AppConfig.myTeamKey}/events/$year/simple',
-    ) as List;
-    return _cachedEvents = data.cast<Map<String, dynamic>>();
+
+    // Next year too: from the end of the fall off-season until January, the
+    // next comp is already registered under next season's year (Oct 2026 →
+    // 2027casnf), and this year alone would only offer past events.
+    Future<List<Map<String, dynamic>>> eventsIn(int y) async =>
+        (await tba.get('/team/${AppConfig.myTeamKey}/events/$y/simple')
+                as List)
+            .cast<Map<String, dynamic>>();
+
+    final results = await Future.wait([
+      eventsIn(year),
+      // Optional — failing it must not hide this year's events.
+      eventsIn(year + 1).catchError((_) => <Map<String, dynamic>>[]),
+    ]);
+    return _cachedEvents = [...results[0], ...results[1]];
   }
 
   /// Finds Team 751's relevant event for the UPCOMING schedule:
@@ -250,16 +262,128 @@ class ScheduleRepository {
     return roster;
   }
 
-  /// Builds the per-team strength map used for match prediction, entirely from
-  /// TBA (no scouting). Combines:
+  /// Per-event memo of [_priorRatings]. Holds the Future rather than the
+  /// result, so the schedule and rankings tabs loading at the same moment share
+  /// one fetch instead of each starting their own.
+  final Map<String, Future<Map<int, TeamRating>>> _priorCache = {};
+
+  /// The per-team strength map used for match prediction and the picklist,
+  /// entirely from TBA (no scouting).
+  ///
+  /// Uses [eventKey]'s own ratings once TBA has OPRs for it. Before that —
+  /// i.e. before the event's first matches — falls back to each roster team's
+  /// most recent completed event this season (see [_priorRatings]), with
+  /// [TeamRating.sourceEventKey] marking every borrowed rating. Returns an
+  /// empty map (→ no predictions shown) only when neither source has data.
+  Future<Map<int, TeamRating>> fetchTeamRatings(
+    String eventKey,
+    List<TbaMatch> matches,
+  ) async {
+    final current = await _eventRatings(eventKey, matches);
+    if (current.isNotEmpty) return current;
+
+    final pending = _priorCache[eventKey] ??= _priorRatings(eventKey);
+    try {
+      return await pending;
+    } catch (_) {
+      // Offline or TBA down — forget the failure so the next load retries.
+      _priorCache.remove(eventKey);
+      return {};
+    }
+  }
+
+  /// Pre-comp ratings for [eventKey]'s roster: each team's rating from its
+  /// newest completed event this season that TBA rated it at, tagged with
+  /// that event's key.
+  ///
+  /// Same season only — OPRs from a different year's game are in different
+  /// points, so a team with no events yet this season is simply left out
+  /// (and treated as event-average by [MatchPrediction.compute]).
+  Future<Map<int, TeamRating>> _priorRatings(String eventKey) async {
+    final roster = (await tba.get('/event/$eventKey/teams/keys') as List)
+        .cast<String>();
+    final numbers = [
+      for (final k in roster) int.tryParse(TbaMatch.displayNumber(k)),
+    ];
+    // The season comes from the key ("2027casj"), not the clock, so a January
+    // week-0 lookup still reads the right year.
+    final year = eventKey.substring(0, 4);
+    final now = DateTime.now();
+
+    // 1 — each team's completed events this season, newest first. One team
+    //     failing shouldn't sink the rest; all of them failing means we're
+    //     offline, which is thrown so the result isn't cached.
+    var failures = 0;
+    final history = await Future.wait(roster.map((teamKey) async {
+      try {
+        final data =
+            await tba.get('/team/$teamKey/events/$year/simple') as List;
+        final done = data
+            .cast<Map<String, dynamic>>()
+            .where((e) =>
+                e['key'] != eventKey &&
+                DateTime.parse(e['end_date'] as String).isBefore(now))
+            .toList()
+          ..sort((a, b) => DateTime.parse(b['end_date'] as String)
+              .compareTo(DateTime.parse(a['end_date'] as String)));
+        return [for (final e in done) e['key'] as String];
+      } catch (_) {
+        failures++;
+        return const <String>[];
+      }
+    }));
+    if (roster.isNotEmpty && failures == roster.length) {
+      throw TbaException('no team history reachable for $eventKey');
+    }
+
+    // 2 — rate events in rounds. Each round rates the next-newest untried
+    //     event of every team still unrated; teams share events, so each one
+    //     is fetched once. Nearly every team is rated at its latest event, so
+    //     this usually finishes in a single round.
+    final rated = <String, Map<int, TeamRating>>{};
+    final cursor = List.filled(roster.length, 0);
+    final out = <int, TeamRating>{};
+    while (true) {
+      final wanted = <String>{};
+      for (var i = 0; i < roster.length; i++) {
+        final n = numbers[i];
+        if (n == null || out.containsKey(n)) continue;
+        while (cursor[i] < history[i].length) {
+          final key = history[i][cursor[i]];
+          final r = rated[key]?[n];
+          if (r != null) {
+            out[n] = r.withSource(key);
+            break;
+          }
+          if (rated.containsKey(key)) {
+            cursor[i]++; // rated already, but without this team — go older
+            continue;
+          }
+          wanted.add(key);
+          break;
+        }
+      }
+      if (wanted.isEmpty) return out;
+
+      await Future.wait(wanted.map((key) async {
+        try {
+          rated[key] = await _eventRatings(key, await getMatches(key));
+        } catch (_) {
+          rated[key] = const {};
+        }
+      }));
+    }
+  }
+
+  /// One event's ratings, built from TBA alone. Combines:
   ///   - `/oprs`      → OPR / DPR / CCWM
   ///   - `/rankings`  → rank, avg ranking points, W-L-T record
   ///   - [matches]    → each team's real alliance-score mean + std (already
   ///                    loaded for the schedule, so no extra calls)
   ///
-  /// Returns an empty map (→ no predictions shown) if TBA has no OPRs yet,
-  /// e.g. before the event's first matches are played.
-  Future<Map<int, TeamRating>> fetchTeamRatings(
+  /// Returns an empty map if TBA has no OPRs yet, e.g. before the event's
+  /// first matches are played.
+  Future<Map<int, TeamRating>> _eventRatings(
     String eventKey,
     List<TbaMatch> matches,
   ) async {

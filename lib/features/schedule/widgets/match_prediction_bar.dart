@@ -4,7 +4,8 @@ import '../../../data/models/match_prediction.dart';
 
 /// The "tug-of-war" prediction bar shown under an upcoming match: predicted
 /// score on each side, a fill split by win probability, and a confidence note
-/// when not all six teams have TBA data yet.
+/// when not all six teams have TBA data yet or the data is pre-comp (borrowed
+/// from each team's previous event).
 ///
 /// Renders nothing when there's no rating data to predict from.
 class MatchPredictionBar extends StatelessWidget {
@@ -95,11 +96,15 @@ class MatchPredictionBar extends StatelessWidget {
               ),
             ],
           ),
-          if (p.ratedTeams < p.totalTeams)
+          if (p.preComp || p.ratedTeams < p.totalTeams)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                '${p.ratedTeams}/${p.totalTeams} teams rated',
+                [
+                  if (p.preComp) 'Pre-comp estimate',
+                  if (p.ratedTeams < p.totalTeams)
+                    '${p.ratedTeams}/${p.totalTeams} teams rated',
+                ].join(' · '),
                 style: TextStyle(
                   fontSize: 10,
                   fontStyle: FontStyle.italic,

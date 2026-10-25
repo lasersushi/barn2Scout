@@ -20,6 +20,7 @@ class TeamRating {
     this.contribMedian,
     this.contribStd,
     this.lowMatchCount,
+    this.sourceEventKey,
   });
 
   final int team;
@@ -77,6 +78,36 @@ class TeamRating {
   /// Matches where output collapsed by more than two of the event's typical
   /// swings — the "the robot wasn't working" count. Null below 2 matches.
   final int? lowMatchCount;
+
+  /// The earlier event this rating was borrowed from, or null when it was
+  /// measured at the current event. Set before an event's first matches, when
+  /// TBA has no OPRs yet — see [ScheduleRepository.fetchTeamRatings]. Every
+  /// field above (rank and record included) describes *that* event.
+  final String? sourceEventKey;
+
+  /// Whether this is a pre-comp estimate from an earlier event.
+  bool get isPreComp => sourceEventKey != null;
+
+  /// This rating, tagged as borrowed from [eventKey].
+  TeamRating withSource(String eventKey) => TeamRating(
+        team: team,
+        opr: opr,
+        dpr: dpr,
+        ccwm: ccwm,
+        avgRp: avgRp,
+        winRate: winRate,
+        wins: wins,
+        losses: losses,
+        ties: ties,
+        rank: rank,
+        scoreMean: scoreMean,
+        scoreStd: scoreStd,
+        matchesPlayed: matchesPlayed,
+        contribMedian: contribMedian,
+        contribStd: contribStd,
+        lowMatchCount: lowMatchCount,
+        sourceEventKey: eventKey,
+      );
 
   /// W-L-T formatted as "8-2-0", or null if record not yet available.
   String? get record {

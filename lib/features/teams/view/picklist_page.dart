@@ -7,6 +7,7 @@ import '../../../data/models/team_strength.dart';
 import '../cubit/picklist_cubit.dart';
 import '../cubit/ratings_cubit.dart';
 import 'picklist_sheet.dart';
+import 'pre_comp_banner.dart';
 import 'team_dossier_sheet.dart';
 
 /// The alliance-picklist board (prototype "Variant A"): every team at the
@@ -24,16 +25,19 @@ class PicklistPage extends StatelessWidget {
         RatingsNoEvent() => const _NoEventState(),
         RatingsEmpty() => const _EmptyState(),
         RatingsError s => _ErrorState(message: s.message),
-        RatingsLoaded s => _Board(teams: s.teams),
+        RatingsLoaded s => _Board(teams: s.teams, preComp: s.isPreComp),
       },
     );
   }
 }
 
 class _Board extends StatelessWidget {
-  const _Board({required this.teams});
+  const _Board({required this.teams, this.preComp = false});
 
   final List<TeamStrength> teams;
+
+  /// Ratings are borrowed from each team's previous event — show a banner.
+  final bool preComp;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +50,12 @@ class _Board extends StatelessWidget {
           children: [
             _ListBar(state: pick, teams: teams),
             const Divider(height: 1),
+            if (preComp)
+              PreCompBanner(
+                message: 'Pre-comp: ratings from each team\'s latest '
+                    '${teams.first.rating.sourceEventKey!.substring(0, 4)} '
+                    'event. Switches to this event once matches are played.',
+              ),
             Expanded(
               child: ListView.separated(
                 itemCount: teams.length,
