@@ -439,14 +439,22 @@ class ScheduleRepository {
 
   /// Returns live Nexus matches for [eventKey], or an empty list if the event
   /// isn't currently active in Nexus (e.g. off-season, between events).
+  ///
+  /// Nexus only supplements TBA with queue status, so any failure here
+  /// (network, unexpected JSON shape) degrades to no status chips rather than
+  /// failing the whole schedule load.
   Future<List<NexusMatch>> getNexusMatches(String eventKey) async {
-    final event = await nexus.getEvent(eventKey);
-    if (event == null) return [];
-    final raw = event['matches'] as List? ?? [];
-    return raw
-        .cast<Map<String, dynamic>>()
-        .map(NexusMatch.fromJson)
-        .toList();
+    try {
+      final event = await nexus.getEvent(eventKey);
+      if (event == null) return [];
+      final raw = event['matches'] as List? ?? [];
+      return raw
+          .cast<Map<String, dynamic>>()
+          .map(NexusMatch.fromJson)
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Returns pit assignments for [eventKey], or an empty list if Nexus

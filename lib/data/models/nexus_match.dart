@@ -12,13 +12,13 @@ class NexusMatch {
     this.estimatedStartTime,
   });
 
-  final String label; // "Qual 3", "Practice 1", etc.
+  final String label; // "Qualification 3", "Playoff 8", "Final 1", "Practice 1"
 
   /// Live queue status string from Nexus.
   /// Common values: "Upcoming", "Now queuing", "On deck", "On field".
   final String status;
 
-  final List<String?> redTeams; // null = slot not yet assigned
+  final List<String?> redTeams; // null = slot not yet assigned; empty = alliance TBD
   final List<String?> blueTeams;
   final DateTime? estimatedQueueTime;
   final DateTime? estimatedStartTime;
@@ -36,8 +36,14 @@ class NexusMatch {
     return NexusMatch(
       label: json['label'] as String,
       status: json['status'] as String,
-      redTeams: (json['redTeams'] as List).map((e) => e as String?).toList(),
-      blueTeams: (json['blueTeams'] as List).map((e) => e as String?).toList(),
+      // Playoff matches whose alliances aren't decided yet omit these keys
+      // entirely (not a list of nulls), so treat a missing side as empty.
+      redTeams: ((json['redTeams'] as List?) ?? const [])
+          .map((e) => e as String?)
+          .toList(),
+      blueTeams: ((json['blueTeams'] as List?) ?? const [])
+          .map((e) => e as String?)
+          .toList(),
       estimatedQueueTime: parseMs(times?['estimatedQueueTime']),
       estimatedStartTime: parseMs(times?['estimatedStartTime']),
     );

@@ -83,7 +83,7 @@ class _Barn2SchedulePageState extends State<Barn2SchedulePage> {
                     separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, i) => MatchTile(
                       match: s.myUpcomingMatches[i],
-                      nexus: s.nexusFor(s.myUpcomingMatches[i].label),
+                      nexus: s.nexusFor(s.myUpcomingMatches[i]),
                       ratings: s.ratings,
                     ),
                   ),

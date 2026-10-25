@@ -77,13 +77,21 @@ class ScheduleLoaded extends ScheduleState {
   List<TbaMatch> get pastMatches =>
       pastAllMatches.where((m) => m.isPlayed).toList().reversed.toList();
 
-  /// Nexus status for a given match label, or null if not found.
-  NexusMatch? nexusFor(String label) {
-    try {
-      return nexusMatches.firstWhere((n) => n.label == label);
-    } catch (_) {
-      return null;
+  /// Nexus status for [match], or null if Nexus has no entry for it.
+  ///
+  /// Looked up by [TbaMatch.nexusLabel], not team lists: Nexus shows FMS
+  /// placeholder numbers for B-teams and substitutes (9982) where TBA has the
+  /// real key (frc8B). A replay shares the original's TBA match, and once it
+  /// exists it's the one being queued, so it wins over the original.
+  NexusMatch? nexusFor(TbaMatch match) {
+    final label = match.nexusLabel;
+    if (label == null) return null;
+    NexusMatch? original;
+    for (final n in nexusMatches) {
+      if (n.label == '$label Replay') return n;
+      if (n.label == label) original = n;
     }
+    return original;
   }
 }
 

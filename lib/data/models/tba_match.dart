@@ -46,6 +46,25 @@ class TbaMatch {
     }
   }
 
+  /// This match's label as FRC Nexus writes it, or null for levels Nexus
+  /// doesn't use. Nexus labels differ from [label]: "Qualification 24",
+  /// "Playoff 8", "Final 2".
+  ///
+  /// Double-elim playoffs are one match per `sf` set, and Nexus numbers them
+  /// by that set ("sf8m1" → "Playoff 8"). Verified against live 2026 events.
+  String? get nexusLabel {
+    switch (compLevel) {
+      case 'qm':
+        return 'Qualification $matchNumber';
+      case 'sf':
+        return 'Playoff $setNumber';
+      case 'f':
+        return 'Final $matchNumber';
+      default:
+        return null;
+    }
+  }
+
   /// Numeric sort key so matches appear in competition order.
   int get sortKey {
     const order = {'ef': 0, 'qm': 1, 'qf': 2, 'sf': 3, 'f': 4};
