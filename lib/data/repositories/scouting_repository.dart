@@ -47,12 +47,36 @@ class ScoutingRepository {
   Future<List<ScoutingRecord>> getUnsynced() =>
       _records.filter().syncedEqualTo(false).findAll();
 
-  /// Flip [ScoutingRecord.synced] to true once Supabase has accepted them.
-  Future<void> markSynced(Iterable<String> uuids) => _isar.writeTxn(() async {
+  /// Flip [ScoutingRecord.synced] to true once Supabase has accepted them,
+  /// stamping the [userId] they were pushed under.
+  Future<void> markSynced(Iterable<String> uuids, {required String userId}) =>
+      _isar.writeTxn(() async {
         for (final uuid in uuids) {
           final record = await _records.filter().uuidEqualTo(uuid).findFirst();
           if (record != null) {
             record.synced = true;
+            record.userId = userId;
+            await _records.put(record);
+          }
+        }
+      });
+
+  /// Uuids of records with no [ScoutingRecord.userId] — i.e. stored before
+  /// attribution existed. Sync backfills them from the server rows.
+  Future<Set<String>> getUuidsMissingUserId() async {
+    final missing =
+        await _records.filter().userIdIsNull().uuidProperty().findAll();
+    return missing.toSet();
+  }
+
+  /// Sets [ScoutingRecord.userId] for each uuid → userId pair.
+  Future<void> backfillUserIds(Map<String, String> userIdsByUuid) =>
+      _isar.writeTxn(() async {
+        for (final MapEntry(key: uuid, value: userId)
+            in userIdsByUuid.entries) {
+          final record = await _records.filter().uuidEqualTo(uuid).findFirst();
+          if (record != null) {
+            record.userId = userId;
             await _records.put(record);
           }
         }

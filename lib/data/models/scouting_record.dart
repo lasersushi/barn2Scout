@@ -42,6 +42,11 @@ class ScoutingRecord {
   @Index()
   late bool synced;
 
+  /// Supabase `user_id` of the account the record is attributed to. Null
+  /// until the record has been pushed (stamped with the pusher's id) or pulled
+  /// (copied from the server row). Drives leaderboard XP.
+  String? userId;
+
   @ignore
   Map<String, dynamic> get autoData => _decodeMap(autoDataJson);
   set autoData(Map<String, dynamic> value) => autoDataJson = jsonEncode(value);
@@ -70,6 +75,7 @@ class ScoutingRecord {
     Map<String, dynamic> endgameData = const {},
     this.notes = '',
     this.synced = false,
+    this.userId,
   })  : autoDataJson = jsonEncode(autoData),
         teleopDataJson = jsonEncode(teleopData),
         endgameDataJson = jsonEncode(endgameData);

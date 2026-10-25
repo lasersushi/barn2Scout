@@ -89,6 +89,7 @@ class _NewRecordDialogState extends State<NewRecordDialog> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(labelText: 'Team number'),
               validator: _requireInt,
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
             ),
             if (_isMatch)
               TextFormField(
@@ -96,11 +97,14 @@ class _NewRecordDialogState extends State<NewRecordDialog> {
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Match number'),
                 validator: _requireInt,
+                onTapOutside: (_) =>
+                    FocusManager.instance.primaryFocus?.unfocus(),
               ),
             TextFormField(
               controller: _scouter,
               textCapitalization: TextCapitalization.words,
               decoration: const InputDecoration(labelText: 'Scouter name'),
+              onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
               validator: (value) =>
                   (value == null || value.trim().isEmpty) ? 'Required' : null,
             ),

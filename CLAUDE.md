@@ -50,7 +50,8 @@ lib/
     auth/                 # AuthCubit (3 auth tiers) + LoginPage (@priorypanther.com / @prioryca.org email+password)
     shell/                 # HomeShell (regular scouters) and AdminShell (admin/super admin) — separate IndexedStack tab sets, each with its own inactivity observer
     scouting/               # Match form (Bloc FSM) + Pit form (Cubit) + FieldConfig system
-    records/                # Match/Pit TabBar, QR share/scan
+    records/                # Match/Pit/Leaderboard TabBar, QR share/scan
+    leaderboard/            # Scouter XP leaderboard (pure rules in xp.dart)
     schedule/               # My Schedule, All Schedules, Past Matches tabs
     sync/                    # SyncCubit — periodic pull + auto-push on new record
     teams/                    # Rankings + Pit Map + Picklist sub-tabs; TeamDossierSheet (TBA-only)
@@ -97,6 +98,8 @@ Both `HomeShell` and `AdminShell` are `StatefulWidget`s with their own `WidgetsB
 ## Sync model
 
 Isar is the device source of truth. `ScoutingRecord.synced` and `PitScoutingRecord.synced` (indexed bools) mark the offline queue.
+
+Both record types also carry a nullable `userId` (the Supabase `user_id` the record is attributed to). Push stamps it with the pushing account via `markSynced(..., userId:)`; pull copies it from the server row and backfills it onto local records that predate the field.
 
 `SyncRepository` handles bidirectional sync for three things:
 - **Match records** (`scouting_records` Supabase table) — push unsynced, pull by event key
@@ -172,6 +175,14 @@ Two cubits read from it, for two different audiences:
 - `MyTasksCubit` (`MyTasksSection`, embedded in `RecordsPage` for every scouter) — just the signed-in user's assigned teams, cross-referenced against pit records to show a done/not-done checklist.
 
 Both bail to an empty/no-event state via the same `EventStatus.past` check `RatingsCubit` and `PicklistCubit` use (see Teams feature, below).
+
+## Leaderboard / XP
+
+Third tab in `RecordsPage`, backed by `LeaderboardCubit`. Current event only. It bails to `LeaderboardNoEvent` on `EventStatus.past`, like the other per-event cubits. Rules live in `lib/features/leaderboard/xp.dart`: match report 10 XP, pit report 15 XP, +5 XP when `notes` plus every `FieldType.text` field total ≥ 20 characters, and a new level every 100 XP.
+
+Attribution is by account, not `scouterName`. A synced record counts for its `userId`. An unsynced record counts for the signed-in user (`AssignmentRepository.currentUserId`), because that's who the next push stamps it as. Display names come from `ScoutProfile`, falling back to the latest `scouterName`. XP counts reports filed by *scouters*. It never touches team metrics, so the rankings/analytics rule above still holds.
+
+Admins also get `ScoutXpPage` (Manage tab → "Scout XP"): the same `LeaderboardCubit` built with `includeIdleScouts: true`, so non-admin scouts with no reports show at 0 XP. Admins only appear once they've filed a report.
 
 ## Match prediction system
 

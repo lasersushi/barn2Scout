@@ -15,6 +15,9 @@ class AssignmentRepository {
 
   String? get _currentUserId => _client.auth.currentUser?.id;
 
+  /// Supabase id of the signed-in scouter, or null when signed out.
+  String? get currentUserId => _currentUserId;
+
   Stream<List<PitAssignment>> watchForEvent(String eventKey) => _assignments
       .filter()
       .eventKeyEqualTo(eventKey)

@@ -11,6 +11,8 @@ import '../../../data/repositories/schedule_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
 import '../../../data/repositories/sync_repository.dart';
 import '../../../data/repositories/team_repository.dart';
+import '../../leaderboard/cubit/leaderboard_cubit.dart';
+import '../../leaderboard/view/leaderboard_tab.dart';
 import '../../management/cubit/my_tasks_cubit.dart';
 import '../../management/view/my_tasks_section.dart';
 import '../../scouting/view/pit_form_page.dart';
@@ -48,6 +50,13 @@ class RecordsPage extends StatelessWidget {
                   ctx.read<PitScoutingRepository>(),
                   ctx.read<TeamRepository>(),
                 )..init()),
+        BlocProvider(
+            create: (ctx) => LeaderboardCubit(
+                  ctx.read<ScoutingRepository>(),
+                  ctx.read<PitScoutingRepository>(),
+                  ctx.read<AssignmentRepository>(),
+                  ctx.read<ScheduleRepository>(),
+                )..init()),
       ],
       // Re-detect the comp when the event override changes in Settings —
       // this page lives in an IndexedStack, so it's never rebuilt on its own.
@@ -58,6 +67,7 @@ class RecordsPage extends StatelessWidget {
           context.read<RecordsCubit>().init();
           context.read<PitRecordsCubit>().init();
           context.read<MyTasksCubit>().init();
+          context.read<LeaderboardCubit>().init();
         },
         child: const _RecordsView(),
       ),
@@ -79,7 +89,7 @@ class _RecordsViewState extends State<_RecordsView>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 2, vsync: this);
+    _tab = TabController(length: 3, vsync: this);
     _tab.addListener(() => setState(() {}));
   }
 
@@ -127,14 +137,18 @@ class _RecordsViewState extends State<_RecordsView>
           tabs: const [
             Tab(icon: Icon(Icons.sports_score_outlined), text: 'Match'),
             Tab(icon: Icon(Icons.build_outlined), text: 'Pit'),
+            Tab(icon: Icon(Icons.emoji_events_outlined), text: 'Leaderboard'),
           ],
         ),
       ),
       // Hidden when there's no active comp — a record created then would be
-      // keyed to a past event and instantly invisible.
+      // keyed to a past event and instantly invisible — and on the
+      // Leaderboard tab, which has nothing to create.
       floatingActionButton: BlocBuilder<RecordsCubit, RecordsState>(
         builder: (context, state) {
-          if (state is RecordsNoEvent) return const SizedBox.shrink();
+          if (state is RecordsNoEvent || _tab.index == 2) {
+            return const SizedBox.shrink();
+          }
           return FloatingActionButton.extended(
             onPressed: () => _startNewRecord(context),
             icon: const Icon(Icons.add),
@@ -144,7 +158,11 @@ class _RecordsViewState extends State<_RecordsView>
       ),
       body: TabBarView(
         controller: _tab,
-        children: const [_MatchRecordsList(), _PitRecordsList()],
+        children: const [
+          _MatchRecordsList(),
+          _PitRecordsList(),
+          LeaderboardTab(),
+        ],
       ),
     );
   }

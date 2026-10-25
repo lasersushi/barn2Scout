@@ -9,7 +9,8 @@ import 'package:http/testing.dart';
 import 'package:ota_update/ota_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-/// A GitHub /releases/latest response with the parts the repository reads.
+// A GitHub /releases/latest response with the parts the repository reads.
+// TODO: Fix text size
 Map<String, dynamic> releaseJson({
   String tag = 'v26.3.0',
   String body = 'Fixes the flux capacitor\nMore details below.',

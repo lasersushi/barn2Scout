@@ -201,6 +201,7 @@ class _PhaseFields extends StatelessWidget {
         bloc.config.where((field) => field.phase == scoutPhase).toList();
     return ListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       itemCount: fields.length,
       itemBuilder: (context, index) {
         final field = fields[index];
@@ -227,6 +228,7 @@ class _ReviewPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.all(12),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         for (final phase in ScoutPhase.values) ...[
           Padding(
@@ -256,6 +258,7 @@ class _ReviewPanel extends StatelessWidget {
             labelText: 'Notes',
             border: OutlineInputBorder(),
           ),
+          onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
           onChanged: (value) => bloc.add(NotesChanged(value)),
         ),
       ],
@@ -273,43 +276,48 @@ class _FormNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final bloc = context.read<ScoutingFormBloc>();
     final saving = state.status == FormStatus.saving;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: state.isFirstPhase || saving
-                    ? null
-                    : () => bloc.add(const PhaseReverted()),
-                icon: const Icon(Icons.arrow_back),
-                label: const Text('Back'),
+    // Scaffold leaves bottomNavigationBar under the keyboard; lift it so
+    // Save stays tappable while the Notes field is focused.
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: state.isFirstPhase || saving
+                      ? null
+                      : () => bloc.add(const PhaseReverted()),
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Back'),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: state.isReview
-                  ? FilledButton.icon(
-                      onPressed:
-                          saving ? null : () => bloc.add(const FormSubmitted()),
-                      icon: saving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.save),
-                      label: Text(saving ? 'Saving…' : 'Save'),
-                    )
-                  : FilledButton.icon(
-                      onPressed: () => bloc.add(const PhaseAdvanced()),
-                      icon: const Icon(Icons.arrow_forward),
-                      label: const Text('Next'),
-                    ),
-            ),
-          ],
+              const SizedBox(width: 12),
+              Expanded(
+                child: state.isReview
+                    ? FilledButton.icon(
+                        onPressed:
+                            saving ? null : () => bloc.add(const FormSubmitted()),
+                        icon: saving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.save),
+                        label: Text(saving ? 'Saving…' : 'Save'),
+                      )
+                    : FilledButton.icon(
+                        onPressed: () => bloc.add(const PhaseAdvanced()),
+                        icon: const Icon(Icons.arrow_forward),
+                        label: const Text('Next'),
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );

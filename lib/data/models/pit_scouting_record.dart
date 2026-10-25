@@ -28,6 +28,10 @@ class PitScoutingRecord {
   @Index()
   late bool synced;
 
+  /// Supabase `user_id` the record is attributed to. See
+  /// `ScoutingRecord.userId`.
+  String? userId;
+
   @ignore
   Map<String, dynamic> get pitData => _decodeMap(pitDataJson);
   set pitData(Map<String, dynamic> value) => pitDataJson = jsonEncode(value);
@@ -43,6 +47,7 @@ class PitScoutingRecord {
     Map<String, dynamic> pitData = const {},
     this.notes = '',
     this.synced = false,
+    this.userId,
   }) : pitDataJson = jsonEncode(pitData);
 }
 

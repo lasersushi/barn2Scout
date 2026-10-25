@@ -91,6 +91,7 @@ class _PitFormView extends StatelessWidget {
           appBar: AppBar(title: Text('Pit Scout — Team $teamNumber')),
           body: ListView.builder(
             padding: const EdgeInsets.only(bottom: 100),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
             itemCount: items.length,
             itemBuilder: (context, index) {
               final item = items[index];
@@ -106,24 +107,44 @@ class _PitFormView extends StatelessWidget {
               );
             },
           ),
-          bottomNavigationBar: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: FilledButton.icon(
-                onPressed: saving ? null : cubit.submit,
-                icon: saving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.save_outlined),
-                label: Text(saving ? 'Saving…' : 'Save'),
-              ),
-            ),
-          ),
+          bottomNavigationBar:
+              _SaveBar(saving: saving, onSave: cubit.submit),
         );
       },
+    );
+  }
+}
+
+/// Save button pinned to the bottom. Its own widget so the keyboard animation
+/// (which changes viewInsets every frame) rebuilds just this bar, not the form.
+class _SaveBar extends StatelessWidget {
+  const _SaveBar({required this.saving, required this.onSave});
+
+  final bool saving;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    // Scaffold leaves bottomNavigationBar under the keyboard; lift it so Save
+    // stays tappable while a text or number field is focused.
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: FilledButton.icon(
+            onPressed: saving ? null : onSave,
+            icon: saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.save_outlined),
+            label: Text(saving ? 'Saving…' : 'Save'),
+          ),
+        ),
+      ),
     );
   }
 }
