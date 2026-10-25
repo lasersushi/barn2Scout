@@ -10,53 +10,32 @@ import '../widgets/match_prediction_bar.dart';
 
 /// Full event schedule — all matches, all teams.
 /// Highlights any match containing Team 751.
-class OtherTeamSchedulesPage extends StatefulWidget {
+///
+/// Body-only: lives inside [SchedulePage]'s "All Schedules" tab, which owns
+/// the AppBar and the initial [ScheduleCubit.load].
+class OtherTeamSchedulesPage extends StatelessWidget {
   const OtherTeamSchedulesPage({super.key});
-
-  @override
-  State<OtherTeamSchedulesPage> createState() => _OtherTeamSchedulesPageState();
-}
-
-class _OtherTeamSchedulesPageState extends State<OtherTeamSchedulesPage> {
-  @override
-  void initState() {
-    super.initState();
-    context.read<ScheduleCubit>().load();
-  }
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<ScheduleCubit, ScheduleState>(
       builder: (context, state) {
-        return Scaffold(
-          appBar: AppBar(
-            title: switch (state) {
-              ScheduleLoaded s when s.isActiveEvent => Text(s.eventName),
-              ScheduleLoaded s when s.isUpcomingEvent => Text(
-                'Next: ${s.eventName}',
-              ),
-              ScheduleLoaded s => Text('Last: ${s.eventName}'),
-              _ => const Text('Schedules'),
-            },
-          ),
-          body: switch (state) {
-            ScheduleInitial() || ScheduleLoading() => const Center(
-              child: CircularProgressIndicator(),
-            ),
-            ScheduleError s => Center(child: Text(s.message)),
-            ScheduleLoaded s =>
-              s.upcomingMatches.isEmpty
-                  ? const Center(child: Text('No upcoming matches found.'))
-                  : ListView.separated(
-                      itemCount: s.upcomingMatches.length,
-                      separatorBuilder: (_, _) => const Divider(height: 1),
-                      itemBuilder: (_, i) => _FullMatchTile(
-                        match: s.upcomingMatches[i],
-                        ratings: s.ratings,
-                      ),
+        return switch (state) {
+          ScheduleInitial() ||
+          ScheduleLoading() => const Center(child: CircularProgressIndicator()),
+          ScheduleError s => Center(child: Text(s.message)),
+          ScheduleLoaded s =>
+            s.upcomingMatches.isEmpty
+                ? const Center(child: Text('No upcoming matches found.'))
+                : ListView.separated(
+                    itemCount: s.upcomingMatches.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (_, i) => _FullMatchTile(
+                      match: s.upcomingMatches[i],
+                      ratings: s.ratings,
                     ),
-          },
-        );
+                  ),
+        };
       },
     );
   }

@@ -7,51 +7,25 @@ import '../widgets/match_tile.dart';
 /// Team 751's upcoming matches at the current event, with live Nexus queue status.
 /// Past (already-played) matches are hidden here; enable the Past Matches tab
 /// in Settings → Tabs to see them.
-class Barn2SchedulePage extends StatefulWidget {
+///
+/// Body-only: lives inside [SchedulePage]'s "My Schedule" tab, which owns the
+/// AppBar and the initial [ScheduleCubit.load].
+class Barn2SchedulePage extends StatelessWidget {
   const Barn2SchedulePage({super.key});
-
-  @override
-  State<Barn2SchedulePage> createState() => _Barn2SchedulePageState();
-}
-
-class _Barn2SchedulePageState extends State<Barn2SchedulePage> {
-  @override
-  void initState() {
-    super.initState();
-    context.read<ScheduleCubit>().load();
-  }
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<ScheduleCubit, ScheduleState>(
       builder: (context, state) {
-        return Scaffold(
-          appBar: AppBar(
-            title: switch (state) {
-              ScheduleLoaded s when s.isActiveEvent =>
-                Text('751 @ ${s.eventName}'),
-              ScheduleLoaded s when s.isUpcomingEvent =>
-                Text('Next: ${s.eventName}'),
-              ScheduleLoaded s => Text('Last: ${s.eventName}'),
-              _ => const Text('My Schedule'),
-            },
-            actions: [
-              if (state is ScheduleLoaded)
-                IconButton(
-                  icon: const Icon(Icons.refresh),
-                  onPressed: () => context.read<ScheduleCubit>().load(),
-                ),
-            ],
+        return switch (state) {
+          ScheduleInitial() ||
+          ScheduleLoading() => const Center(child: CircularProgressIndicator()),
+          ScheduleError s => _ErrorView(
+            message: s.message,
+            onRetry: () => context.read<ScheduleCubit>().load(),
           ),
-          body: switch (state) {
-            ScheduleInitial() || ScheduleLoading() => const Center(
-                child: CircularProgressIndicator(),
-              ),
-            ScheduleError s => _ErrorView(
-                message: s.message,
-                onRetry: () => context.read<ScheduleCubit>().load(),
-              ),
-            ScheduleLoaded s => s.myUpcomingMatches.isEmpty
+          ScheduleLoaded s =>
+            s.myUpcomingMatches.isEmpty
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(32),
@@ -71,7 +45,9 @@ class _Barn2SchedulePageState extends State<Barn2SchedulePage> {
                                 : 'All matches played. Enable Past Matches in Settings → Tabs to review results.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
@@ -87,8 +63,7 @@ class _Barn2SchedulePageState extends State<Barn2SchedulePage> {
                       ratings: s.ratings,
                     ),
                   ),
-          },
-        );
+        };
       },
     );
   }

@@ -10,9 +10,8 @@ import '../../../data/repositories/update_repository.dart';
 import '../../auth/cubit/auth_cubit.dart';
 import '../../records/view/records_page.dart';
 import '../../schedule/cubit/schedule_cubit.dart';
-import '../../schedule/view/barn2_schedule_page.dart';
-import '../../schedule/view/other_team_schedules_page.dart';
 import '../../schedule/view/past_matches_page.dart';
+import '../../schedule/view/schedule_page.dart';
 import '../../settings/cubit/settings_cubit.dart';
 import '../../settings/view/settings_page.dart';
 import '../../sync/cubit/sync_cubit.dart';
@@ -58,8 +57,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   static List<Widget> _buildPages(bool showPast) => [
-        const Barn2SchedulePage(),
-        const OtherTeamSchedulesPage(),
+        const SchedulePage(),
         const TeamsPage(showPicklist: false),
         const RecordsPage(),
         const SettingsPage(),
@@ -71,11 +69,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           icon: Icon(Icons.event_outlined),
           selectedIcon: Icon(Icons.event),
           label: 'Schedule',
-        ),
-        const NavigationDestination(
-          icon: Icon(Icons.schedule_outlined),
-          selectedIcon: Icon(Icons.schedule),
-          label: 'Schedules',
         ),
         const NavigationDestination(
           icon: Icon(Icons.groups_outlined),
