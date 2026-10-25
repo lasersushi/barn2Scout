@@ -13,8 +13,8 @@ class RatingsNoEvent extends RatingsState {
   const RatingsNoEvent();
 }
 
-/// No TBA ratings available yet — e.g. before the event's first matches are
-/// played, so there are no OPRs to rank from.
+/// No TBA ratings available — the event has no OPRs yet and none of its teams
+/// have played an earlier event this season either.
 class RatingsEmpty extends RatingsState {
   const RatingsEmpty();
 }
@@ -24,6 +24,10 @@ class RatingsLoaded extends RatingsState {
 
   /// Teams ranked by blended strength, descending.
   final List<TeamStrength> teams;
+
+  /// True before the event's first matches, when every rating is borrowed
+  /// from that team's previous event — there are no official standings yet.
+  bool get isPreComp => teams.any((t) => t.rating.isPreComp);
 }
 
 class RatingsError extends RatingsState {

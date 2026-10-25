@@ -4,8 +4,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/config/app_config.dart';
 import '../../../data/models/team_rating.dart';
 import '../cubit/ratings_cubit.dart';
+import 'pre_comp_banner.dart';
 
 /// Official event standings from TBA — teams sorted by their current rank.
+///
+/// Before the event's first matches there are no standings, so it instead
+/// lists the roster in blended-strength order from each team's previous event
+/// this season, under a [PreCompBanner].
 class RankingsTab extends StatelessWidget {
   const RankingsTab({super.key});
 
@@ -17,6 +22,9 @@ class RankingsTab extends StatelessWidget {
         RatingsNoEvent() => const _NoEventState(),
         RatingsEmpty() => const _NoRankingsYet(),
         RatingsError s => _ErrorState(message: s.message),
+        // Already in blend order from TeamStrength.rank.
+        RatingsLoaded s when s.isPreComp => _RankingsList(
+            teams: [for (final ts in s.teams) ts.rating], preComp: true),
         RatingsLoaded s => _RankingsList(teams: _sortedByRank(s.teams
             .map((ts) => ts.rating)
             .where((r) => r.rank != null)
@@ -30,25 +38,47 @@ class RankingsTab extends StatelessWidget {
 }
 
 class _RankingsList extends StatelessWidget {
-  const _RankingsList({required this.teams});
+  const _RankingsList({required this.teams, this.preComp = false});
 
   final List<TeamRating> teams;
+
+  /// Ratings are borrowed from earlier events: number rows by projected
+  /// position rather than official rank, and say so in a banner.
+  final bool preComp;
 
   @override
   Widget build(BuildContext context) {
     if (teams.isEmpty) return const _NoRankingsYet();
-    return ListView.separated(
+    final list = ListView.separated(
       itemCount: teams.length,
       separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, i) => _RankRow(rating: teams[i]),
+      itemBuilder: (context, i) => _RankRow(
+        rating: teams[i],
+        position: preComp ? i + 1 : teams[i].rank,
+      ),
+    );
+    if (!preComp) return list;
+
+    final year = teams.first.sourceEventKey!.substring(0, 4);
+    return Column(
+      children: [
+        PreCompBanner(
+          message: 'Pre-comp: projected from each team\'s latest $year '
+              'event. Official rankings appear once quals start.',
+        ),
+        Expanded(child: list),
+      ],
     );
   }
 }
 
 class _RankRow extends StatelessWidget {
-  const _RankRow({required this.rating});
+  const _RankRow({required this.rating, required this.position});
 
   final TeamRating rating;
+
+  /// Official rank, or projected position when pre-comp.
+  final int? position;
 
   @override
   Widget build(BuildContext context) {
@@ -65,7 +95,7 @@ class _RankRow extends StatelessWidget {
           SizedBox(
             width: 32,
             child: Text(
-              '${r.rank}',
+              '${position ?? '—'}',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -126,6 +156,7 @@ class _RankRow extends StatelessWidget {
 
   String _subtitle(TeamRating r) {
     final parts = <String>[];
+    if (r.isPreComp) parts.add('From ${r.sourceEventKey}');
     if (r.record != null) parts.add(r.record!);
     if (r.scoreMean != null) parts.add('Avg ${r.scoreMean!.toStringAsFixed(0)} pts');
     return parts.join('  ·  ');

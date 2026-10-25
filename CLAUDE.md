@@ -157,7 +157,7 @@ Event auto-detection priority: active today → next upcoming → most recent pa
 
 Three sub-tabs in `TeamsPage`:
 
-1. **Rankings** (`RatingsCubit`) — pulls TBA `/rankings` for W-L-T, OPR, RP. Emits `RatingsNoEvent` if no upcoming/active event exists, showing "No upcoming competitions" instead of stale data. Bail path: if `detectCurrentEvent()` returns `EventStatus.past`, emit `RatingsNoEvent` and return early.
+1. **Rankings** (`RatingsCubit`) — pulls TBA `/rankings` for W-L-T, OPR, RP. Emits `RatingsNoEvent` if no upcoming/active event exists, showing "No upcoming competitions" instead of stale data. Bail path: if `detectCurrentEvent()` returns `EventStatus.past`, emit `RatingsNoEvent` and return early. Before quals start (`RatingsLoaded.isPreComp`), it lists the roster in blended-strength order from each team's previous event instead of by official rank. See "Pre-comp ratings" under Match prediction system.
 2. **Pit Map** (`TeamsCubit`) — Nexus pit data. Draws the venue layout from `/event/{key}/map` (`NexusPitMap` → `PitVenueMap`, zoomable, positions are element *centers*) when volunteers have drawn one; otherwise falls back to a row list from `/pits` (keyed team → pit, e.g. `{"751": "C2"}`). Separate from `RatingsCubit`.
 3. **Picklist** (`PicklistCubit`) — also suppressed on past events via the same `EventStatus` check. Tapping a team row opens `TeamDossierSheet` — a bottom sheet showing OPR/DPR/CCWM, ranking, and real match score spread. Entirely TBA-derived; no human scouting feeds it.
 
@@ -187,6 +187,8 @@ Admins also get `ScoutXpPage` (Manage tab → "Scout XP"): the same `Leaderboard
 ## Match prediction system
 
 `MatchPrediction.compute(match, ratings)` is TBA-data-only. Alliance expected score = Σ OPR; P(red wins) via `normalCdf` over margin / spread. Suppressed when OPRs aren't available. `MatchPredictionBar` renders as a color-split bar under each upcoming `MatchTile`.
+
+**Pre-comp ratings.** `ScheduleRepository.fetchTeamRatings` falls back in this order: the current event's OPRs, then each roster team's newest completed event *this season* that TBA rated it at, then nothing. Last season is never used, because a different game scores in different points. Borrowed ratings carry `TeamRating.sourceEventKey` (`isPreComp`). They flow unchanged through `MatchPrediction` (sets `preComp`, so the bar says "Pre-comp estimate"), `TeamStrength.rank`, Rankings (projected order plus a `PreCompBanner`, since there are no standings), Picklist and the dossier (stats labelled with the source event). The fallback is memoised per event in memory (`_priorCache`, holding the Future so concurrent loads share one fetch). It isn't persisted offline. Before TBA posts the match schedule, only the team lists show pre-comp data.
 
 ## Update system
 

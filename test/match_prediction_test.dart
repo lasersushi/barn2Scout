@@ -104,4 +104,32 @@ void main() {
       expect(p.ratedTeams, 0);
     });
   });
+
+  group('MatchPrediction.preComp', () {
+    final match = _match([254, 1678, 118], [2056, 9999, 4414]);
+
+    test('is false when every rating is from this event', () {
+      final p = MatchPrediction.compute(match, {
+        254: _rating(254, 45),
+        2056: _rating(2056, 15),
+      });
+      expect(p.preComp, isFalse);
+    });
+
+    test('is true when any rated team is borrowed from an earlier event', () {
+      final p = MatchPrediction.compute(match, {
+        254: _rating(254, 45).withSource('2026casj'),
+        2056: _rating(2056, 15),
+      });
+      expect(p.preComp, isTrue);
+    });
+
+    test('ignores borrowed ratings for teams not in the match', () {
+      final p = MatchPrediction.compute(match, {
+        254: _rating(254, 45),
+        751: _rating(751, 30).withSource('2026casj'),
+      });
+      expect(p.preComp, isFalse);
+    });
+  });
 }
