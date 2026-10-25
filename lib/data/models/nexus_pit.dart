@@ -23,34 +23,20 @@ class NexusPit {
     return int.tryParse(digits) ?? 0;
   }
 
-  /// Parse whatever shape Nexus sends — list or map — into a sorted list.
+  /// Parse a Nexus `/pits` response into a list sorted by row, then slot.
   ///
-  /// Nexus has been observed returning either:
-  ///   - A JSON array: [{"label": "A1", "team": "751"}, ...]
-  ///   - A JSON object: {"A1": "751", ...} or {"A1": {"team": "751"}, ...}
+  /// Nexus keys the object by *team*, not pit: `{"751": "C1", "254": "A3"}`
+  /// (verified against live 2026 events). Reading it the other way round
+  /// made every team its own one-tile "row". Anything else, e.g. the
+  /// "No pits." string, yields an empty list.
   static List<NexusPit> parseResponse(dynamic data) {
     final pits = <NexusPit>[];
 
-    if (data is List) {
-      for (final item in data.cast<Map<String, dynamic>>()) {
-        final team = (item['team'] ?? item['teamNumber'] ?? item['number'])
-            ?.toString();
-        final lbl = (item['label'] ?? item['pit'] ?? item['location'])
-            ?.toString();
-        if (team != null && lbl != null) {
-          pits.add(NexusPit(teamNumber: team, label: lbl));
-        }
-      }
-    } else if (data is Map) {
+    if (data is Map) {
       for (final entry in data.entries) {
-        final lbl = entry.key.toString();
-        final value = entry.value;
-        final team = value is Map
-            ? (value['team'] ?? value['teamNumber'])?.toString()
-            : value?.toString();
-        if (team != null) {
-          pits.add(NexusPit(teamNumber: team, label: lbl));
-        }
+        final lbl = entry.value?.toString().trim();
+        if (lbl == null || lbl.isEmpty) continue;
+        pits.add(NexusPit(teamNumber: entry.key.toString(), label: lbl));
       }
     }
 

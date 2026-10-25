@@ -13,10 +13,14 @@ class TeamsLoading extends TeamsState {
 }
 
 class TeamsLoaded extends TeamsState {
-  const TeamsLoaded({required this.pits, required this.eventKey});
+  const TeamsLoaded({required this.pits, required this.eventKey, this.map});
 
   final List<NexusPit> pits; // empty = volunteers haven't configured yet
   final String eventKey;
+
+  /// The drawn venue layout. Preferred over [byRow] when present; null when
+  /// the event only has pit assignments without a drawn map.
+  final NexusPitMap? map;
 
   /// Pits grouped by row letter: {"A": [pit, pit, ...], "B": [...], ...}
   Map<String, List<NexusPit>> get byRow {

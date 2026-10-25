@@ -158,7 +158,7 @@ Event auto-detection priority: active today → next upcoming → most recent pa
 Three sub-tabs in `TeamsPage`:
 
 1. **Rankings** (`RatingsCubit`) — pulls TBA `/rankings` for W-L-T, OPR, RP. Emits `RatingsNoEvent` if no upcoming/active event exists, showing "No upcoming competitions" instead of stale data. Bail path: if `detectCurrentEvent()` returns `EventStatus.past`, emit `RatingsNoEvent` and return early.
-2. **Pit Map** (`TeamsCubit`) — Nexus pit location data. Separate from `RatingsCubit`.
+2. **Pit Map** (`TeamsCubit`) — Nexus pit data. Draws the venue layout from `/event/{key}/map` (`NexusPitMap` → `PitVenueMap`, zoomable, positions are element *centers*) when volunteers have drawn one; otherwise falls back to a row list from `/pits` (keyed team → pit, e.g. `{"751": "C2"}`). Separate from `RatingsCubit`.
 3. **Picklist** (`PicklistCubit`) — also suppressed on past events via the same `EventStatus` check. Tapping a team row opens `TeamDossierSheet` — a bottom sheet showing OPR/DPR/CCWM, ranking, and real match score spread. Entirely TBA-derived; no human scouting feeds it.
 
 ## Admin: pit assignments

@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../data/models/nexus_pit.dart';
+import '../../../data/models/nexus_pit_map.dart';
 import '../../../data/repositories/schedule_repository.dart';
 
 part 'teams_state.dart';
@@ -18,8 +19,8 @@ class TeamsCubit extends Cubit<TeamsState> {
     emit(const TeamsLoading());
     try {
       final key = eventKey ?? (await _repo.detectCurrentEvent()).key;
-      final pits = await _repo.getPits(key);
-      emit(TeamsLoaded(pits: pits, eventKey: key));
+      final (pits, map) = await (_repo.getPits(key), _repo.getPitMap(key)).wait;
+      emit(TeamsLoaded(pits: pits, map: map, eventKey: key));
     } catch (e) {
       emit(TeamsError(e.toString()));
     }

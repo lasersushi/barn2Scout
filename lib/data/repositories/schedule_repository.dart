@@ -4,6 +4,7 @@ import '../../core/config/app_config.dart';
 import '../models/event.dart';
 import '../models/nexus_match.dart';
 import '../models/nexus_pit.dart';
+import '../models/nexus_pit_map.dart';
 import '../models/tba_match.dart';
 import '../models/team.dart';
 import '../models/team_rating.dart';
@@ -467,6 +468,16 @@ class ScheduleRepository {
       return NexusPit.parseResponse(data);
     } catch (_) {
       return [];
+    }
+  }
+
+  /// Returns the drawn venue pit map for [eventKey], or null if volunteers
+  /// haven't drawn one (Nexus sends "No map.") or it can't be fetched.
+  Future<NexusPitMap?> getPitMap(String eventKey) async {
+    try {
+      return NexusPitMap.parse(await nexus.getRaw('/event/$eventKey/map'));
+    } catch (_) {
+      return null;
     }
   }
 }

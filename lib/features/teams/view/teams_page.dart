@@ -10,6 +10,7 @@ import '../cubit/picklist_cubit.dart';
 import '../cubit/ratings_cubit.dart';
 import '../cubit/teams_cubit.dart';
 import 'picklist_page.dart';
+import 'pit_venue_map.dart';
 import 'rankings_tab.dart';
 
 class TeamsPage extends StatefulWidget {
@@ -100,6 +101,9 @@ class _TeamsView extends StatelessWidget {
                 TeamsInitial() || TeamsLoading() =>
                   const Center(child: CircularProgressIndicator()),
                 TeamsError s => Center(child: Text(s.message)),
+                // Prefer the drawn venue layout; fall back to rows when the
+                // event has pit assignments but no drawn map.
+                TeamsLoaded(map: final map?) => PitVenueMap(map: map),
                 TeamsLoaded s => s.pits.isEmpty
                     ? const _NoPitsPlaceholder()
                     : _PitMap(byRow: s.byRow),
