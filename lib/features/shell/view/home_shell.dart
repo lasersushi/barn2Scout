@@ -60,7 +60,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   static List<Widget> _buildPages(bool showPast) => [
         const Barn2SchedulePage(),
         const OtherTeamSchedulesPage(),
-        const TeamsPage(),
+        const TeamsPage(showPicklist: false),
         const RecordsPage(),
         const SettingsPage(),
         if (showPast) const PastMatchesPage(),

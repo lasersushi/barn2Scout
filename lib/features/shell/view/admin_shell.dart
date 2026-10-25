@@ -63,7 +63,7 @@ class _AdminShellState extends State<AdminShell> with WidgetsBindingObserver {
   static List<Widget> _buildPages(bool showPast) => [
         const Barn2SchedulePage(),
         const OtherTeamSchedulesPage(),
-        const TeamsPage(),
+        const TeamsPage(showPicklist: true),
         const RecordsPage(),
         const ManagementPage(),
         const SettingsPage(),

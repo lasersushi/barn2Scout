@@ -14,7 +14,11 @@ import 'pit_venue_map.dart';
 import 'rankings_tab.dart';
 
 class TeamsPage extends StatefulWidget {
-  const TeamsPage({super.key});
+  const TeamsPage({super.key, required this.showPicklist});
+
+  /// Picklist is admin-only — the shell decides, since it already knows the
+  /// signed-in role.
+  final bool showPicklist;
 
   @override
   State<TeamsPage> createState() => _TeamsPageState();
@@ -27,7 +31,7 @@ class _TeamsPageState extends State<TeamsPage>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: widget.showPicklist ? 3 : 2, vsync: this);
   }
 
   @override
@@ -54,19 +58,21 @@ class _TeamsPageState extends State<TeamsPage>
         BlocProvider(
           create: (ctx) => RatingsCubit(ctx.read<ScheduleRepository>())..load(),
         ),
-        BlocProvider(
-          create: (ctx) => PicklistCubit(ctx.read<PicklistRepository>()),
-        ),
+        if (widget.showPicklist)
+          BlocProvider(
+            create: (ctx) => PicklistCubit(ctx.read<PicklistRepository>()),
+          ),
       ],
-      child: _TeamsView(tab: _tab),
+      child: _TeamsView(tab: _tab, showPicklist: widget.showPicklist),
     );
   }
 }
 
 class _TeamsView extends StatelessWidget {
-  const _TeamsView({required this.tab});
+  const _TeamsView({required this.tab, required this.showPicklist});
 
   final TabController tab;
+  final bool showPicklist;
 
   @override
   Widget build(BuildContext context) {
@@ -84,10 +90,10 @@ class _TeamsView extends StatelessWidget {
             ],
             bottom: TabBar(
               controller: tab,
-              tabs: const [
-                Tab(text: 'Rankings'),
-                Tab(text: 'Pit Map'),
-                Tab(text: 'Picklist'),
+              tabs: [
+                const Tab(text: 'Rankings'),
+                const Tab(text: 'Pit Map'),
+                if (showPicklist) const Tab(text: 'Picklist'),
               ],
             ),
           ),
@@ -109,7 +115,7 @@ class _TeamsView extends StatelessWidget {
                     : _PitMap(byRow: s.byRow),
               },
               // ── Picklist ─────────────────────────────────────────────────
-              const PicklistPage(),
+              if (showPicklist) const PicklistPage(),
             ],
           ),
         );
