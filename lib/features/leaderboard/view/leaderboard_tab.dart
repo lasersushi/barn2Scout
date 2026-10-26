@@ -1,12 +1,72 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../points/view/points_view.dart';
 import '../cubit/leaderboard_cubit.dart';
 import '../xp.dart';
 
-/// Scouter XP standings for the current comp — the Records page's third tab.
-class LeaderboardTab extends StatelessWidget {
+enum _Board { xp, points }
+
+/// The Records page's third tab: scouter XP standings, with the separate
+/// points-and-betting game one switch away.
+class LeaderboardTab extends StatefulWidget {
   const LeaderboardTab({super.key});
+
+  @override
+  State<LeaderboardTab> createState() => _LeaderboardTabState();
+}
+
+class _LeaderboardTabState extends State<LeaderboardTab> {
+  final _board = ValueNotifier(_Board.xp);
+
+  @override
+  void dispose() {
+    _board.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<_Board>(
+      valueListenable: _board,
+      builder: (context, board, _) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<_Board>(
+                segments: const [
+                  ButtonSegment(
+                    value: _Board.xp,
+                    icon: Icon(Icons.emoji_events_outlined),
+                    label: Text('XP'),
+                  ),
+                  ButtonSegment(
+                    value: _Board.points,
+                    icon: Icon(Icons.toll_outlined),
+                    label: Text('Points'),
+                  ),
+                ],
+                selected: {board},
+                onSelectionChanged: (s) => _board.value = s.first,
+              ),
+            ),
+          ),
+          Expanded(
+            child: switch (board) {
+              _Board.xp => const _XpBoard(),
+              _Board.points => const PointsView(),
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _XpBoard extends StatelessWidget {
+  const _XpBoard();
 
   @override
   Widget build(BuildContext context) {

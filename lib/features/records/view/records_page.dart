@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../data/models/pit_scouting_record.dart';
 import '../../../data/models/scouting_record.dart';
 import '../../../data/repositories/assignment_repository.dart';
+import '../../../data/repositories/bet_repository.dart';
 import '../../../data/repositories/pit_scouting_repository.dart';
 import '../../../data/repositories/schedule_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
@@ -15,6 +16,7 @@ import '../../leaderboard/cubit/leaderboard_cubit.dart';
 import '../../leaderboard/view/leaderboard_tab.dart';
 import '../../management/cubit/my_tasks_cubit.dart';
 import '../../management/view/my_tasks_section.dart';
+import '../../points/cubit/points_cubit.dart';
 import '../../scouting/view/pit_form_page.dart';
 import '../../scouting/view/scouting_form_page.dart';
 import '../../auth/cubit/auth_cubit.dart';
@@ -57,6 +59,14 @@ class RecordsPage extends StatelessWidget {
                   ctx.read<AssignmentRepository>(),
                   ctx.read<ScheduleRepository>(),
                 )..init()),
+        BlocProvider(
+            create: (ctx) => PointsCubit(
+                  ctx.read<ScoutingRepository>(),
+                  ctx.read<PitScoutingRepository>(),
+                  ctx.read<AssignmentRepository>(),
+                  ctx.read<ScheduleRepository>(),
+                  ctx.read<BetRepository>(),
+                )..init()),
       ],
       // Re-detect the comp when the event override changes in Settings —
       // this page lives in an IndexedStack, so it's never rebuilt on its own.
@@ -68,6 +78,7 @@ class RecordsPage extends StatelessWidget {
           context.read<PitRecordsCubit>().init();
           context.read<MyTasksCubit>().init();
           context.read<LeaderboardCubit>().init();
+          context.read<PointsCubit>().init();
         },
         child: const _RecordsView(),
       ),

@@ -52,6 +52,7 @@ lib/
     scouting/               # Match form (Bloc FSM) + Pit form (Cubit) + FieldConfig system
     records/                # Match/Pit/Leaderboard TabBar, QR share/scan
     leaderboard/            # Scouter XP leaderboard (pure rules in xp.dart)
+    points/                 # Points + match betting, under the Leaderboard tab (pure rules in points.dart)
     schedule/               # My Schedule, All Schedules, Past Matches tabs
     sync/                    # SyncCubit — periodic pull + auto-push on new record
     teams/                    # Rankings + Pit Map + Picklist sub-tabs; TeamDossierSheet (TBA-only)
@@ -183,6 +184,15 @@ Third tab in `RecordsPage`, backed by `LeaderboardCubit`. Current event only. It
 Attribution is by account, not `scouterName`. A synced record counts for its `userId`. An unsynced record counts for the signed-in user (`AssignmentRepository.currentUserId`), because that's who the next push stamps it as. Display names come from `ScoutProfile`, falling back to the latest `scouterName`. XP counts reports filed by *scouters*. It never touches team metrics, so the rankings/analytics rule above still holds.
 
 Admins also get `ScoutXpPage` (Manage tab → "Scout XP"): the same `LeaderboardCubit` built with `includeIdleScouts: true`, so non-admin scouts with no reports show at 0 XP. Admins only appear once they've filed a report.
+
+## Points / betting
+
+A second game under the Leaderboard tab, behind an **XP | Points** switch (`LeaderboardTab` → `PointsView`), backed by `PointsCubit`. It is unrelated to XP: it has its own constants and code, and it never changes XP. Scouts earn points from reports (`kMatchReportPoints` / `kPitReportPoints`, attributed the same way as XP) and bet them on matches that TBA hasn't marked as started. Points are per event, and the cubit bails on `EventStatus.past`.
+
+- **Storage:** Only bets are stored, in the Supabase `match_bets` table (`supabase/match_bets.sql`, run once by hand). `BetRepository` is online-only, with no Isar cache. Balances are never stored. `buildPointsLedger()` in `lib/features/points/points.dart` derives them from reports, bets and TBA results, so every device gets the same answer.
+- **Payouts are pari-mutuel:** winners get their stake back plus a share of the losing side's stakes, split by stake size and rounded down. Ties, and matches where only one side was bet on, are refunded.
+- **Integrity:** the server sets `placed_at` (an insert trigger overwrites whatever the client sends). A bet counts only if `placed_at` is before TBA's `actual_time` and the scout had the points at that moment. Otherwise it's refunded. RLS allows only inserting your own bets, and there are no update/delete policies, so bets are final.
+- Bets never feed rankings, predictions or any team metric (see the rankings rule).
 
 ## Match prediction system
 

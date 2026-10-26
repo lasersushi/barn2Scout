@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
 import 'core/config/app_config.dart';
 import 'data/repositories/assignment_repository.dart';
+import 'data/repositories/bet_repository.dart';
 import 'data/repositories/event_repository.dart';
 import 'data/repositories/match_repository.dart';
 import 'data/repositories/picklist_repository.dart';
@@ -62,6 +63,7 @@ Future<void> main() async {
         RepositoryProvider(create: (_) => MatchRepository(isar)),
         RepositoryProvider(create: (_) => EventRepository(isar)),
         RepositoryProvider(create: (_) => AssignmentRepository(isar)),
+        RepositoryProvider(create: (_) => BetRepository()),
         RepositoryProvider(create: (_) => UpdateRepository()),
         RepositoryProvider(
           create: (ctx) => ScheduleRepository(
