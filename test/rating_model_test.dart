@@ -81,7 +81,8 @@ void main() {
       for (final e in BacktestEvent.loadAll()) {
         final model = RatingModel.fit(
           e.playedQuals,
-          config: const RatingConfig(priorWeight: 1e-6),
+          config:
+              const RatingConfig(priorWeight: 1e-6, levelPriorWeight: 1e-6),
         );
         expect(model.expectedPoints.keys.toSet(),
             {for (final team in e.tbaOprs.keys) 'frc$team'},
@@ -96,7 +97,9 @@ void main() {
     test('nothing played: the fit is just the priors', () {
       final model = RatingModel.fit(const [], priors: {1: 50, 2: 30});
 
-      expect(model.expectedPoints, {'frc1': 50, 'frc2': 30});
+      expect(model.expectedPoints.keys, ['frc1', 'frc2']);
+      expect(model.expectedPoints['frc1'], closeTo(50, 1e-9));
+      expect(model.expectedPoints['frc2'], closeTo(30, 1e-9));
       expect(model.meanTeamPoints, 40);
       expect(model.pointsOf('frc3'), 40);
       // No misses yet, so σ is all assumption: half a 3 × 40 alliance score.
@@ -111,6 +114,31 @@ void main() {
 
       expect(withPrior.expectedPoints['frc1'],
           greaterThan(without.expectedPoints['frc1']! + 10));
+    });
+
+    test('a team with a prior and one without get their own λ', () {
+      // One-robot alliances keep each row to one unknown, so each robot sits
+      // between its own score and its prior (frc2's is the 30-point event
+      // average), weighted 1 : λ.
+      List<double> fit(RatingConfig config) {
+        final model = RatingModel.fit(
+          [_qual(1, ['frc1'], ['frc2'], redScore: 60, blueScore: 0)],
+          priors: {1: 30},
+          config: config,
+        );
+        return [model.expectedPoints['frc1']!, model.expectedPoints['frc2']!];
+      }
+
+      // (60 + 2·30) / 3 and (0 + 1·30) / 2.
+      expect(fit(const RatingConfig(priorWeight: 2, levelPriorWeight: 1)), [
+        closeTo(40, 1e-9),
+        closeTo(15, 1e-9),
+      ]);
+      // (60 + 1·30) / 2 and (0 + 2·30) / 3.
+      expect(fit(const RatingConfig(priorWeight: 1, levelPriorWeight: 2)), [
+        closeTo(45, 1e-9),
+        closeTo(20, 1e-9),
+      ]);
     });
 
     test('no matches and no priors: knows nothing, predicts nothing', () {

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:barn2scout/core/config/app_config.dart';
+import 'package:barn2scout/data/models/rating_model.dart';
 import 'package:barn2scout/data/models/tba_match.dart';
 import 'package:barn2scout/data/repositories/event_repository.dart';
 import 'package:barn2scout/data/repositories/schedule_repository.dart';
@@ -89,6 +90,11 @@ TbaMatch _qual(
   actualTime: redScore == null ? null : DateTime(2026, 3, 6, 9, number),
 );
 
+/// Where one scored qual leaves a robot that played it alone: between its
+/// [score] and its prior [mu], weighted 1 : λ.
+double _blend(num score, num mu, double lambda) =>
+    (score + lambda * mu) / (1 + lambda);
+
 /// A repo backed by a fake TBA serving [routes]. [hits] counts requests per
 /// path; paths in [failing] return 500.
 ScheduleRepository _repo(
@@ -138,7 +144,9 @@ void main() {
           ]);
 
       expect(ratings.teams[1]!.isPreComp, isTrue);
-      expect(ratings.model.expectedPoints, {'frc1': 50, 'frc2': 35});
+      expect(ratings.model.expectedPoints.keys, ['frc1', 'frc2']);
+      expect(ratings.model.expectedPoints['frc1'], closeTo(50, 1e-9));
+      expect(ratings.model.expectedPoints['frc2'], closeTo(35, 1e-9));
     });
 
     test('rates each team from its newest prior event', () async {
@@ -181,7 +189,9 @@ void main() {
         _season(),
       ).fetchTeamRatings('2026next', const []);
 
-      expect(ratings.model.expectedPoints, {'frc1': 50, 'frc2': 35});
+      expect(ratings.model.expectedPoints.keys, ['frc1', 'frc2']);
+      expect(ratings.model.expectedPoints['frc1'], closeTo(50, 1e-9));
+      expect(ratings.model.expectedPoints['frc2'], closeTo(35, 1e-9));
       // frc3 has nothing to borrow, so it counts as the borrowed average.
       expect(ratings.model.pointsOf('frc3'), 42.5);
     });
@@ -193,11 +203,17 @@ void main() {
 
       // Still borrowed, so still labelled pre-comp…
       expect(ratings.teams[1]!.isPreComp, isTrue);
-      // …but the result counts, with λ = 1: frc1 halfway from 0 to its
-      // borrowed 50, and frc3 (no prior) halfway from 300 to the 150-point
-      // average.
-      expect(ratings.model.expectedPoints['frc1'], closeTo(25, 1e-9));
-      expect(ratings.model.expectedPoints['frc3'], closeTo(225, 1e-9));
+      // …but the result counts: frc1 between its 0 and its borrowed 50, and
+      // frc3 (no prior) between its 300 and the 150-point event average.
+      const c = kRatingConfig;
+      expect(
+        ratings.model.expectedPoints['frc1'],
+        closeTo(_blend(0, 50, c.priorWeight), 1e-9),
+      );
+      expect(
+        ratings.model.expectedPoints['frc3'],
+        closeTo(_blend(300, 150, c.levelPriorWeight), 1e-9),
+      );
     });
 
     test('fits the current event once TBA has OPRs for it', () async {
@@ -205,15 +221,46 @@ void main() {
           await _repo(
             _season(currentOprs: {'frc1': 70, 'frc2': 10, 'frc3': 40}),
           ).fetchTeamRatings('2026next', [
-            _qual(1, ['frc1'], ['frc2'], redScore: 90, blueScore: 30),
+            _qual(1, ['frc1'], ['frc3'], redScore: 90, blueScore: 30),
           ]);
 
-      // One match: each robot's own score pulled toward the 60-point average
-      // with λ = 1, so halfway: (90 + 60) / 2 and (30 + 60) / 2.
-      expect(ratings.model.expectedPoints['frc1'], closeTo(75, 1e-9));
-      expect(ratings.model.expectedPoints['frc2'], closeTo(45, 1e-9));
-      // Pre-comp priors are only fetched before the event has OPRs.
+      // The event's own ratings are what's shown…
+      expect(ratings.teams[1]!.opr, 70);
       expect(ratings.teams[1]!.isPreComp, isFalse);
+      // …but the borrowed OPRs stay on as the model's priors: frc1 between
+      // its 90 and its borrowed 50, frc3 (no prior) between its 30 and the
+      // 60-point average.
+      const c = kRatingConfig;
+      expect(
+        ratings.model.expectedPoints['frc1'],
+        closeTo(_blend(90, 50, c.priorWeight), 1e-9),
+      );
+      expect(
+        ratings.model.expectedPoints['frc3'],
+        closeTo(_blend(30, 60, c.levelPriorWeight), 1e-9),
+      );
+    });
+
+    test('fits the current event without priors when they fail', () async {
+      final ratings =
+          await _repo(
+            _season(currentOprs: {'frc1': 70, 'frc2': 10, 'frc3': 40}),
+            failing: {'/event/2026next/teams/keys'},
+          ).fetchTeamRatings('2026next', [
+            _qual(1, ['frc1'], ['frc3'], redScore: 90, blueScore: 30),
+          ]);
+
+      expect(ratings.teams[1]!.opr, 70);
+      // Both pulled toward the 60-point average alone.
+      const c = kRatingConfig;
+      expect(
+        ratings.model.expectedPoints['frc1'],
+        closeTo(_blend(90, 60, c.levelPriorWeight), 1e-9),
+      );
+      expect(
+        ratings.model.expectedPoints['frc3'],
+        closeTo(_blend(30, 60, c.levelPriorWeight), 1e-9),
+      );
     });
 
     test('concurrent loads share one fetch', () async {

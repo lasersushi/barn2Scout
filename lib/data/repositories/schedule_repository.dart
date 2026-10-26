@@ -272,44 +272,50 @@ class ScheduleRepository {
   /// TBA (no scouting): TBA's per-team numbers plus a [RatingModel] fit to
   /// [matches]' scored quals.
   ///
-  /// Uses [eventKey]'s own ratings once a qual is scored and TBA has OPRs for
-  /// it. Until then, falls back to each roster team's most recent completed
-  /// event this season (see [_priorRatings]), with
-  /// [TeamRating.sourceEventKey] marking every borrowed rating and their OPRs
-  /// as the model's priors. Returns [EventRatings.empty] (→ no predictions
-  /// shown) only when neither source has data.
+  /// The model's priors are each roster team's OPR at its most recent
+  /// completed event this season (see [_priorRatings]), all event long: a
+  /// team's earlier events say a lot about it until its matches here have
+  /// said more. If they can't be fetched (offline), the fit does without.
+  ///
+  /// [EventRatings.teams] are [eventKey]'s own ratings once a qual is scored
+  /// and TBA has OPRs for it. Until then they are the borrowed ratings, with
+  /// [TeamRating.sourceEventKey] marking each one. Returns
+  /// [EventRatings.empty] (→ no predictions shown) only when neither source
+  /// has data.
   Future<EventRatings> fetchTeamRatings(
     String eventKey,
     List<TbaMatch> matches,
   ) async {
     // TBA serves an OPR of 0 for every team as soon as the qual schedule is
     // posted, so OPRs alone don't mean anything has been played.
-    final current = matches.any(RatingModel.isScoredQual)
-        ? await _eventRatings(eventKey, matches)
-        : const <int, TeamRating>{};
-    if (current.isNotEmpty) {
-      return EventRatings(teams: current, model: RatingModel.fit(matches));
-    }
+    final (current, borrowed) = await (
+      matches.any(RatingModel.isScoredQual)
+          ? _eventRatings(eventKey, matches)
+          : Future.value(const <int, TeamRating>{}),
+      _borrowedRatings(eventKey),
+    ).wait;
+    final model = RatingModel.fit(
+      matches,
+      priors: {for (final r in (borrowed ?? const {}).values) r.team: r.opr},
+    );
 
-    final pending = _priorCache[eventKey] ??= _priorRatings(eventKey);
-    final Map<int, TeamRating> borrowed;
+    if (current.isNotEmpty) return EventRatings(teams: current, model: model);
+    if (borrowed == null) return EventRatings.empty;
+    // Usually nothing is scored here yet, so the fit is just the priors. If
+    // /oprs failed or lags the first results, the quals already scored still
+    // count.
+    return EventRatings(teams: borrowed, model: model);
+  }
+
+  /// [_priorRatings] for [eventKey], memoised; null if they can't be fetched.
+  Future<Map<int, TeamRating>?> _borrowedRatings(String eventKey) async {
     try {
-      borrowed = await pending;
+      return await (_priorCache[eventKey] ??= _priorRatings(eventKey));
     } catch (_) {
       // Offline or TBA down — forget the failure so the next load retries.
       _priorCache.remove(eventKey);
-      return EventRatings.empty;
+      return null;
     }
-    // Usually nothing is scored here yet, so the fit is just the priors: each
-    // team's OPR from the event it was borrowed from. If /oprs failed or lags
-    // the first results, the quals already scored still pull it from there.
-    return EventRatings(
-      teams: borrowed,
-      model: RatingModel.fit(
-        matches,
-        priors: {for (final r in borrowed.values) r.team: r.opr},
-      ),
-    );
   }
 
   /// Pre-comp ratings for [eventKey]'s roster: each team's rating from its

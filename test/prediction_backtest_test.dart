@@ -133,13 +133,19 @@ void main() {
 
   test('report', () {
     // The old model as the app ran it until Phase 2: TBA's OPRs plus nudges.
-    // The new one: the app's own MatchPrediction on a fresh RatingModel fit.
+    // The new one: the app's own MatchPrediction on a fresh RatingModel fit,
+    // with each team's OPR at its previous event as its prior. 'no priors'
+    // is the same fit without them, to show what the priors add.
     final models = <String,
         MatchPrediction Function(BacktestEvent, List<TbaMatch>, TbaMatch)>{
       'old model': (e, known, m) =>
           legacyPredict(m, legacyRatingsAsOf(e, known)),
-      'new model': (e, known, m) => MatchPrediction.compute(
+      'no priors': (e, known, m) => MatchPrediction.compute(
           m, EventRatings(model: RatingModel.fit(known))),
+      'new model': (e, known, m) => MatchPrediction.compute(
+          m,
+          EventRatings(
+              model: RatingModel.fit(known, priors: e.priorOprs))),
     };
     final rows = {
       for (final lead in const [1, 6])
@@ -151,28 +157,31 @@ void main() {
     };
     final lead1 = rows['old model, lead 1']!;
 
-    final paired = StringBuffer('paired, new − old (negative = new is better, '
-        '± 1 standard error clustered by event), then per event\n');
+    final paired = StringBuffer('paired, new model − baseline (negative = new '
+        'is better, ± 1 standard error clustered by event), then per event\n');
     final deltas =
         <String, ({double mean, double se, Map<String, double> byEvent})>{};
-    for (final lead in const [1, 6]) {
-      for (final MapEntry(key: metric, value: loss) in {
-        'Brier': brierOf,
-        'log loss': logLossOf,
-      }.entries) {
-        final d = deltas['$metric, lead $lead'] = pairedDelta(
-          rows['old model, lead $lead']!,
-          rows['new model, lead $lead']!,
-          loss,
-        );
-        paired.writeln('  ${'$metric, lead $lead'.padRight(18)}'
-            '${d.mean.toStringAsFixed(4).padLeft(8)} ± '
-            '${d.se.toStringAsFixed(4)}');
-        paired.writeln('    ${[
-          for (final MapEntry(:key, :value) in d.byEvent.entries)
-            '${key.substring(4)} ${value >= 0 ? '+' : ''}'
-                '${value.toStringAsFixed(3)}',
-        ].join('  ')}');
+    for (final baseline in const ['old model', 'no priors']) {
+      for (final lead in const [1, 6]) {
+        for (final MapEntry(key: metric, value: loss) in {
+          'Brier': brierOf,
+          'log loss': logLossOf,
+        }.entries) {
+          final label = '$metric, lead $lead, vs $baseline';
+          final d = deltas[label] = pairedDelta(
+            rows['$baseline, lead $lead']!,
+            rows['new model, lead $lead']!,
+            loss,
+          );
+          paired.writeln('  ${label.padRight(32)}'
+              '${d.mean.toStringAsFixed(4).padLeft(8)} ± '
+              '${d.se.toStringAsFixed(4)}');
+          paired.writeln('    ${[
+            for (final MapEntry(:key, :value) in d.byEvent.entries)
+              '${key.substring(4)} ${value >= 0 ? '+' : ''}'
+                  '${value.toStringAsFixed(3)}',
+          ].join('  ')}');
+        }
       }
     }
 
@@ -215,10 +224,10 @@ void main() {
       }
     }
 
-    // The new model has to beat the old one on the same matches, on both
-    // scores, at both leads, by more than 2.4 standard errors: the 95% t
-    // value for 8 events (7 degrees of freedom), since the error is
-    // estimated from so few.
+    // The new model has to beat both the old one and itself without priors
+    // on the same matches, on both scores, at both leads, by more than 2.4
+    // standard errors: the 95% t value for 8 events (7 degrees of freedom),
+    // since the error is estimated from so few.
     for (final MapEntry(key: label, value: d) in deltas.entries) {
       expect(d.mean + 2.4 * d.se, lessThan(0), reason: label);
     }

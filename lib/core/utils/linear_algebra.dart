@@ -16,22 +16,25 @@ class Cholesky {
   /// shows up while factoring.
   Cholesky(List<List<double>> a) : _l = _factor(a);
 
-  /// The factor of `scale·I`, an n×n identity scaled by [scale] (> 0): every
-  /// pivot is √scale. Grow it with [addOuter].
-  Cholesky.scaledIdentity(int n, double scale) : _l = _scaledIdentity(n, scale);
+  /// The factor of a diagonal matrix with [diagonal] (every entry > 0) down
+  /// its diagonal: each pivot is the square root of its entry. Grow it with
+  /// [addOuter].
+  Cholesky.diagonal(List<double> diagonal) : _l = _diagonal(diagonal);
 
   /// Lower-triangular factor, row-major. Entries above the diagonal stay 0.
   final List<List<double>> _l;
 
   int get size => _l.length;
 
-  static List<List<double>> _scaledIdentity(int n, double scale) {
-    // Written as !(scale > 0) so NaN is rejected too.
-    if (!(scale > 0)) throw ArgumentError('scale must be positive');
-    final pivot = math.sqrt(scale);
+  static List<List<double>> _diagonal(List<double> d) {
+    // Written as !(x > 0) so NaN is rejected too.
+    if (d.any((x) => !(x > 0))) {
+      throw ArgumentError('diagonal entries must be positive');
+    }
+    final n = d.length;
     return [
       for (var i = 0; i < n; i++)
-        [for (var j = 0; j < n; j++) i == j ? pivot : 0.0],
+        [for (var j = 0; j < n; j++) i == j ? math.sqrt(d[i]) : 0.0],
     ];
   }
 

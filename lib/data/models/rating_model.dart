@@ -13,21 +13,33 @@ import 'tba_match.dart';
 /// backtest replays quals only, so it can't check [playoffSigmaScale].
 class RatingConfig {
   const RatingConfig({
-    this.priorWeight = 1,
+    this.priorWeight = 3,
+    this.levelPriorWeight = 1,
     this.sigmaPerMeanScore = 0.5,
     this.sigmaPriorWeight = 10,
     this.playoffSigmaScale = 1.1,
-  }) : assert(priorWeight > 0);
+  })  : assert(priorWeight > 0),
+        assert(levelPriorWeight > 0);
 
-  /// λ: how many matches' worth of evidence a team's prior counts for. Bigger
-  /// is steadier early in an event, but slower to believe a team that really
-  /// is better or worse than its prior.
+  /// λ for a team with a prior of its own (its OPR at an earlier event): how
+  /// many matches' worth of evidence that prior counts for. Bigger is
+  /// steadier early in an event, but slower to believe a team that really is
+  /// better or worse than its prior.
   ///
-  /// With only the event average as the prior, 0.5 and 1 tied at predicting
-  /// 4,899 2026 quals (Brier 0.1684 vs 0.1686, within noise), and both beat
-  /// 1.5–4. 1 was kept for its slightly better accuracy and early-event Brier.
-  /// A real per-team prior is worth more.
+  /// On 4,899 2026 quals, 65 events with two thirds of teams holding a prior,
+  /// 2–4 tied (Brier 0.1460–0.1468) and 1 and 6 were a little worse. 3 was
+  /// kept from the middle of that range. Against no priors at all it cut
+  /// Brier from 0.1686 to 0.1461 and lifted accuracy from 74.4% to 79.0%.
   final double priorWeight;
+
+  /// λ for a team with no prior, which is pulled toward the event's average
+  /// points per robot instead. That says nothing about the team itself, so it
+  /// counts for less than a real prior.
+  ///
+  /// 0.5 and 1 tied at predicting 4,899 2026 quals (Brier 0.1684 vs 0.1686,
+  /// within noise), and both beat 1.5–4. 1 was kept for its slightly better
+  /// accuracy and early-event Brier.
+  final double levelPriorWeight;
 
   /// The miss assumed before an event has shown any real ones, as a fraction
   /// of its mean alliance score.
@@ -52,14 +64,16 @@ const RatingConfig kRatingConfig = RatingConfig();
 ///
 /// [expectedPoints] solves ridge-regularised OPR:
 ///
-///     (AᵀA + λI)·x = Aᵀs + λ·μ
+///     (AᵀA + Λ)·x = Aᵀs + Λ·μ
 ///
 /// * A has a row per scored qual alliance, with a 1 for each robot on it, and
-///   s holds those alliances' scores. With λ = 0 this is exactly OPR.
-/// * μ is each team's prior guess: a rating borrowed from an earlier event,
-///   or failing that the event's average points per robot.
-/// * λ ([RatingConfig.priorWeight]) is how many matches' worth of evidence
-///   the prior counts for.
+///   s holds those alliances' scores. With Λ = 0 this is exactly OPR.
+/// * μ is each team's prior guess: its OPR at an earlier event, or failing
+///   that the event's average points per robot.
+/// * Λ is diagonal, holding each team's λ: how many matches' worth of
+///   evidence its prior counts for. A real prior counts for more
+///   ([RatingConfig.priorWeight]) than the event average
+///   ([RatingConfig.levelPriorWeight]).
 ///
 /// Plain OPR has no idea what "average" is. Early in an event, with about as
 /// many unknowns as alliance results, it lurches to absurd values: 3,423
@@ -91,7 +105,15 @@ class RatingModel {
   /// matches are ignored, so the full schedule can be passed straight in.
   ///
   /// [priors] are prior guesses at a team's points per match, keyed by team
-  /// number. A team without one is pulled toward the event average instead.
+  /// number: its OPR at an earlier event. A team without one is pulled toward
+  /// the event average instead.
+  ///
+  /// Priors are used as they are, though teams improve between events: in
+  /// 2026 they scored about 1.5× their previous event's OPR in March, and
+  /// about 1× by the championships. Scaling every prior to how the event was
+  /// scoring didn't help on the 2026 replay (it was best not done at all).
+  /// A bias every team shares mostly cancels out of the margin, and a team's
+  /// own matches soon correct it.
   factory RatingModel.fit(
     Iterable<TbaMatch> matches, {
     Map<int, double> priors = const {},
@@ -121,7 +143,7 @@ class RatingModel {
       }.toList()
         ..sort(),
       priorsByKey,
-      config.priorWeight,
+      config,
     );
 
     // σ comes from replaying the event: each qual is predicted from only the
@@ -171,10 +193,10 @@ class RatingModel {
   /// It's the RMS of every replayed miss so far, blended with
   /// [RatingConfig.sigmaPerMeanScore] × the mean alliance score counted as
   /// [RatingConfig.sigmaPriorWeight] misses. Before any qual it's only that
-  /// assumption. Being an average over the event so far, it runs narrow
-  /// early and about 20% wide late, when the early, less-informed misses
-  /// still count: measured on the 2026 replay, to re-check once real priors
-  /// shrink those early misses.
+  /// assumption. Being an average over the event so far, it runs a little
+  /// wide late, when the early, less-informed misses still count. Without
+  /// priors that was about 20% on the 2026 replay; priors shrink the early
+  /// misses, and what's left is mild ("85%" calls won 91% of the time).
   final double marginSigma;
 
   final RatingConfig config;
@@ -189,27 +211,38 @@ class RatingModel {
       : marginSigma * config.playoffSigmaScale;
 }
 
-/// The ridge normal equations `(AᵀA + λI)·x = Aᵀs + λ·μ`, built up one scored
-/// qual at a time so the σ replay can re-solve after each.
+/// The ridge normal equations `(AᵀA + Λ)·x = Aᵀs + Λ·μ`, built up one scored
+/// qual at a time so the σ replay can re-solve after each. Λ is diagonal:
+/// each team's λ depends on whether it has a prior of its own.
 ///
 /// Keyed by TBA team key rather than number so a B-team ("frc254B") gets its
 /// own share of its alliance's score instead of handing it to its partners.
 class _RidgeEquations {
-  _RidgeEquations(this.keys, this.priors, this.lambda)
+  _RidgeEquations(this.keys, this.priors, this.config)
       : index = {for (var i = 0; i < keys.length; i++) keys[i]: i},
-        factor = Cholesky.scaledIdentity(keys.length, lambda),
-        ats = List<double>.filled(keys.length, 0);
+        lambdas = [
+          for (final k in keys)
+            priors.containsKey(k)
+                ? config.priorWeight
+                : config.levelPriorWeight,
+        ],
+        ats = List<double>.filled(keys.length, 0) {
+    factor = Cholesky.diagonal(lambdas);
+  }
 
   /// Every team the fit covers, sorted.
   final List<String> keys;
   final Map<String, int> index;
   final Map<String, double> priors;
-  final double lambda;
+  final RatingConfig config;
 
-  /// AᵀA + λI, kept factored. It starts as λI, and each alliance adds a row v
+  /// Each team's λ, in [keys] order.
+  final List<double> lambdas;
+
+  /// AᵀA + Λ, kept factored. It starts as Λ, and each alliance adds a row v
   /// to A and so v·vᵀ to AᵀA, which [Cholesky.addOuter] folds into the
   /// factor instead of factoring again before every solve.
-  final Cholesky factor;
+  late final Cholesky factor;
 
   /// Aᵀs: each robot's alliance scores, summed.
   final List<double> ats;
@@ -254,7 +287,7 @@ class _RidgeEquations {
     final level = this.level;
     final x = factor.solve([
       for (var i = 0; i < keys.length; i++)
-        ats[i] + lambda * (priors[keys[i]] ?? level),
+        ats[i] + lambdas[i] * (priors[keys[i]] ?? level),
     ]);
     return {for (var i = 0; i < keys.length; i++) keys[i]: x[i]};
   }

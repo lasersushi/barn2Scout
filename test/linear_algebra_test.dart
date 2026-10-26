@@ -141,16 +141,17 @@ void main() {
       ]);
     });
 
-    test('builds λI + AᵀA one alliance row at a time', () {
-      // The ridge OPR equations for 200 random three-robot alliances.
+    test('builds Λ + AᵀA one alliance row at a time', () {
+      // The ridge OPR equations for 200 random three-robot alliances, with
+      // λ = 2 for half the teams (a prior of their own) and 1 for the rest.
       final rng = math.Random(751);
       const n = 40;
-      const lambda = 1.0;
+      final lambdas = [for (var i = 0; i < n; i++) i.isEven ? 2.0 : 1.0];
       final ata = List.generate(
         n,
-        (i) => List<double>.generate(n, (j) => i == j ? lambda : 0),
+        (i) => List<double>.generate(n, (j) => i == j ? lambdas[i] : 0),
       );
-      final solver = Cholesky.scaledIdentity(n, lambda);
+      final solver = Cholesky.diagonal(lambdas);
       for (var r = 0; r < 200; r++) {
         final row = List<double>.filled(n, 0);
         while (row.where((x) => x > 0).length < 3) {
@@ -170,11 +171,11 @@ void main() {
       ]);
     });
 
-    test('rejects a non-positive scale and a mismatched v', () {
-      expect(() => Cholesky.scaledIdentity(2, 0), throwsArgumentError);
-      expect(() => Cholesky.scaledIdentity(2, double.nan), throwsArgumentError);
+    test('rejects a non-positive diagonal entry and a mismatched v', () {
+      expect(() => Cholesky.diagonal([1, 0]), throwsArgumentError);
+      expect(() => Cholesky.diagonal([double.nan, 1]), throwsArgumentError);
       expect(
-        () => Cholesky.scaledIdentity(2, 1).addOuter([1]),
+        () => Cholesky.diagonal([1, 1]).addOuter([1]),
         throwsArgumentError,
       );
     });
