@@ -141,6 +141,49 @@ void main() {
       ]);
     });
 
+    test('a relative prior follows the event\'s scoring', () {
+      // The event scores 30 a robot. frc1 was a standard deviation above
+      // average last season, frc3 one below; frc2 has nothing to go on.
+      final model = RatingModel.fit(
+        [_qual(1, ['frc1'], ['frc2'], redScore: 60, blueScore: 0)],
+        relativePriors: {1: 1, 3: -1},
+        config: const RatingConfig(
+          relativePriorScale: 0.5,
+          relativePriorWeight: 1,
+          levelPriorWeight: 1,
+        ),
+      );
+
+      // frc1: between its 60 and 30 × (1 + 0.5), weighted 1 : 1.
+      expect(model.expectedPoints['frc1'], closeTo(52.5, 1e-9));
+      // frc2: between its 0 and the 30-point average.
+      expect(model.expectedPoints['frc2'], closeTo(15, 1e-9));
+      // frc3 hasn't played: just its prior, 30 × (1 − 0.5).
+      expect(model.expectedPoints['frc3'], closeTo(15, 1e-9));
+    });
+
+    test('a prior in points outranks a relative one', () {
+      final model = RatingModel.fit(
+        const [],
+        priors: {1: 50, 2: 30},
+        relativePriors: {1: 2, 3: 1},
+      );
+
+      expect(model.expectedPoints['frc1'], closeTo(50, 1e-9));
+      // frc3 is scaled off the priors' 40-point average.
+      expect(
+        model.expectedPoints['frc3'],
+        closeTo(40 * (1 + kRatingConfig.relativePriorScale), 1e-9),
+      );
+    });
+
+    test('relative priors alone have no scale, so they say nothing', () {
+      final model = RatingModel.fit(const [], relativePriors: {1: 1, 2: -1});
+
+      expect(model.expectedPoints, isEmpty);
+      expect(model.marginSigma, 0);
+    });
+
     test('no matches and no priors: knows nothing, predicts nothing', () {
       final model = RatingModel.fit(const []);
       expect(model.expectedPoints, isEmpty);

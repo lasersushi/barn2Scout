@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:barn2scout/core/config/app_config.dart';
 import 'package:barn2scout/data/models/rating_model.dart';
@@ -73,6 +74,30 @@ Map<String, Object> _season({Map<String, double> currentOprs = const {}}) => {
   '/event/2026lateB/oprs': _oprs({'frc1': 50, 'frc9': 30}),
   '/event/2026lateB/matches/simple': <Object>[],
 };
+
+/// [_season] plus frc3's 2025: two official events, where it was 1 and √2
+/// standard deviations above the mean, and an offseason event that doesn't
+/// count.
+Map<String, Object> _seasonWithHistory() => {
+  ..._season(),
+  '/team/frc3/events/2025/simple': [
+    {..._event('2025a', '2025-03-01'), 'event_type': 1},
+    {..._event('2025b', '2025-04-01'), 'event_type': 0},
+    {..._event('2025off', '2025-10-01'), 'event_type': 99},
+  ],
+  '/event/2025a/oprs': _oprs({'frc3': 30, 'frc8': 10}),
+  // Mean 20, standard deviation √200: frc3 is (40 − 20) / √200 = √2 above.
+  '/event/2025b/oprs': _oprs({'frc3': 40, 'frc8': 10, 'frc9': 10}),
+  '/event/2025off/oprs': _oprs({'frc3': 0, 'frc8': 100}),
+};
+
+/// frc3's average 2025 standing in [_seasonWithHistory].
+final _frc3Z = (1 + math.sqrt(2)) / 2;
+
+/// What a no-quals fit expects from a team [z] standard deviations above
+/// average last season: scaled off [_season]'s 42.5-point average prior.
+double _relativePoints(double z) =>
+    42.5 * (1 + kRatingConfig.relativePriorScale * z);
 
 /// 2026next's qual [number], [red] vs [blue], scored unless [redScore] is null.
 TbaMatch _qual(
@@ -300,6 +325,43 @@ void main() {
     });
   });
 
+  group('last season, for teams with no event this season', () {
+    test('averages its standing over official events only', () async {
+      final ratings = await _repo(
+        _seasonWithHistory(),
+      ).fetchTeamRatings('2026next', const []);
+
+      expect(
+        ratings.model.expectedPoints['frc3'],
+        closeTo(_relativePoints(_frc3Z), 1e-9),
+      );
+      // Still no rating to show: last season's numbers are another game's.
+      expect(ratings.teams.containsKey(3), isFalse);
+    });
+
+    test('a team with no events last season counts as a rookie', () async {
+      final ratings = await _repo({
+        ..._season(),
+        '/team/frc3/events/2025/simple': <Object>[],
+      }).fetchTeamRatings('2026next', const []);
+
+      expect(
+        ratings.model.expectedPoints['frc3'],
+        closeTo(_relativePoints(kRatingConfig.noHistoryZ), 1e-9),
+      );
+    });
+
+    test('a failed lookup leaves the team at average, not a rookie', () async {
+      final ratings = await _repo(
+        _seasonWithHistory(),
+        failing: {'/team/frc3/events/2025/simple'},
+      ).fetchTeamRatings('2026next', const []);
+
+      expect(ratings.model.expectedPoints.containsKey('frc3'), isFalse);
+      expect(ratings.model.pointsOf('frc3'), 42.5);
+    });
+  });
+
   group('pre-comp ratings saved for offline', () {
     late Directory tmp;
     late PriorRatingsStore store;
@@ -318,12 +380,12 @@ void main() {
 
     test('a failed fetch falls back to the saved ratings', () async {
       await _repo(
-        _season(),
+        _seasonWithHistory(),
         priorStore: store,
       ).fetchTeamRatings('2026next', const []);
 
       final ratings = await _repo(
-        _season(),
+        _seasonWithHistory(),
         failing: teamPaths,
         priorStore: store,
       ).fetchTeamRatings('2026next', const []);
@@ -331,6 +393,19 @@ void main() {
       expect(ratings.teams[1]!.opr, 50);
       expect(ratings.teams[1]!.sourceEventKey, '2026lateB');
       expect(ratings.model.expectedPoints['frc2'], closeTo(35, 1e-9));
+      // Last season's standing was saved too.
+      expect(
+        ratings.model.expectedPoints['frc3'],
+        closeTo(_relativePoints(_frc3Z), 1e-9),
+      );
+    });
+
+    test('a file saved before last season was kept is never final', () async {
+      final file = File('${tmp.path}/prior_ratings/2026next.json');
+      await file.parent.create(recursive: true);
+      await file.writeAsString(jsonEncode({'complete': true, 'ratings': []}));
+
+      expect((await store.read('2026next'))!.complete, isFalse);
     });
 
     test(

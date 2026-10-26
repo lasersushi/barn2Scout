@@ -172,12 +172,12 @@ double logLossOf(Forecast f) {
 /// One row per model.
 String forecastTable(Map<String, List<Forecast>> rows) {
   final b = StringBuffer()
-    ..writeln('${'model'.padRight(22)}    n    acc   Brier  LogLoss '
+    ..writeln('${'model'.padRight(26)}    n    acc   Brier  LogLoss '
         '(clamped)  margin RMSE (0-margin)  median | Brier early    mid   late');
   for (final MapEntry(key: label, value: fs) in rows.entries) {
     String phase(int p) =>
         brierScore(fs.where((f) => f.phase == p)).toStringAsFixed(4);
-    b.writeln('${label.padRight(22)} ${fs.length.toString().padLeft(4)}  '
+    b.writeln('${label.padRight(26)} ${fs.length.toString().padLeft(4)}  '
         '${accuracy(fs).toStringAsFixed(3)}  '
         '${brierScore(fs).toStringAsFixed(4)}   '
         '${logLoss(fs).toStringAsFixed(4)} '

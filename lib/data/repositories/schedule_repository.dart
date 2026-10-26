@@ -272,16 +272,16 @@ class ScheduleRepository {
   /// Per-event memo of [_priorRatings]. Holds the Future rather than the
   /// result, so the schedule and rankings tabs loading at the same moment share
   /// one fetch instead of each starting their own.
-  final Map<String, Future<Map<int, TeamRating>>> _priorCache = {};
+  final Map<String, Future<BorrowedPriors>> _priorCache = {};
 
   /// The ratings used for match prediction and the picklist, entirely from
   /// TBA (no scouting): TBA's per-team numbers plus a [RatingModel] fit to
   /// [matches]' scored quals.
   ///
   /// The model's priors are each roster team's OPR at its most recent
-  /// completed event this season (see [_priorRatings]), all event long: a
-  /// team's earlier events say a lot about it until its matches here have
-  /// said more. They're saved to [priorStore] for offline use (see
+  /// completed event this season, or failing that its standing last season
+  /// (see [_priorRatings]), all event long: a team's earlier events say a lot
+  /// about it until its matches here have said more. They're saved to [priorStore] for offline use (see
   /// [_borrowedRatings]); with neither the network nor a saved copy, the fit
   /// does without.
   ///
@@ -305,7 +305,10 @@ class ScheduleRepository {
     ).wait;
     final model = RatingModel.fit(
       matches,
-      priors: {for (final r in (borrowed ?? const {}).values) r.team: r.opr},
+      priors: {
+        for (final r in (borrowed?.ratings ?? const {}).values) r.team: r.opr,
+      },
+      relativePriors: borrowed?.relative ?? const {},
     );
 
     if (current.isNotEmpty) return EventRatings(teams: current, model: model);
@@ -313,7 +316,7 @@ class ScheduleRepository {
     // Usually nothing is scored here yet, so the fit is just the priors. If
     // /oprs failed or lags the first results, the quals already scored still
     // count.
-    return EventRatings(teams: borrowed, model: model);
+    return EventRatings(teams: borrowed.ratings, model: model);
   }
 
   /// [_priorRatings] for [eventKey]: memoised, and saved to [priorStore].
@@ -324,22 +327,22 @@ class ScheduleRepository {
   /// so nothing more can finish for them: ratings saved from then on are
   /// final, and used without asking TBA again. Saved before that, they're
   /// only a fallback for when TBA can't be reached.
-  Future<Map<int, TeamRating>?> _borrowedRatings(
+  Future<BorrowedPriors?> _borrowedRatings(
     String eventKey, {
     required bool started,
   }) async {
     final saved = await priorStore?.read(eventKey);
-    if (saved != null && saved.complete) return saved.ratings;
+    if (saved != null && saved.complete) return saved.priors;
     try {
       return await (_priorCache[eventKey] ??= _priorRatings(eventKey)
-          .then((ratings) async {
-        await priorStore?.write(eventKey, ratings, complete: started);
-        return ratings;
+          .then((priors) async {
+        await priorStore?.write(eventKey, priors, complete: started);
+        return priors;
       }));
     } catch (_) {
       // Offline or TBA down — forget the failure so the next load retries.
       _priorCache.remove(eventKey);
-      return saved?.ratings;
+      return saved?.priors;
     }
   }
 
@@ -347,10 +350,10 @@ class ScheduleRepository {
   /// newest completed event this season that TBA rated it at, tagged with
   /// that event's key.
   ///
-  /// Same season only — OPRs from a different year's game are in different
-  /// points, so a team with no events yet this season is simply left out
-  /// (and treated as event-average by [MatchPrediction.compute]).
-  Future<Map<int, TeamRating>> _priorRatings(String eventKey) async {
+  /// Those are same season only: OPRs from a different year's game are in
+  /// different points. A team with no rated event yet this season gets a
+  /// [BorrowedPriors.relative] prior instead (see [_pastSeasonStanding]).
+  Future<BorrowedPriors> _priorRatings(String eventKey) async {
     final roster = (await tba.get('/event/$eventKey/teams/keys') as List)
         .cast<String>();
     final numbers = [
@@ -414,7 +417,7 @@ class ScheduleRepository {
           break;
         }
       }
-      if (wanted.isEmpty) return out;
+      if (wanted.isEmpty) break;
 
       await Future.wait(wanted.map((key) async {
         try {
@@ -424,6 +427,70 @@ class ScheduleRepository {
         }
       }));
     }
+
+    // 3 — last season's standing for every team still unrated.
+    final standings = <String, Future<Map<String, double>>>{};
+    final relative = <int, double>{};
+    await Future.wait([
+      for (var i = 0; i < roster.length; i++)
+        if (numbers[i] case final n? when !out.containsKey(n))
+          () async {
+            final z = await _pastSeasonStanding(
+                roster[i], int.parse(year) - 1, standings);
+            if (z != null) relative[n] = z;
+          }(),
+    ]);
+    return BorrowedPriors(ratings: out, relative: relative);
+  }
+
+  /// How far above an average robot [teamKey] was in season [year]: its
+  /// OPR's z-score (standard deviations above the event's mean OPR), averaged
+  /// over its official events that year. Unlike raw OPR it's comparable
+  /// across games. [RatingConfig.noHistoryZ] if it had none (mostly
+  /// rookies); null if TBA couldn't be reached, so a real team isn't taken
+  /// for a rookie. [standings] memoises each event's z-scores.
+  Future<double?> _pastSeasonStanding(
+    String teamKey,
+    int year,
+    Map<String, Future<Map<String, double>>> standings,
+  ) async {
+    try {
+      final events = (await tba.get('/team/$teamKey/events/$year/simple')
+              as List)
+          .cast<Map<String, dynamic>>()
+          .where((e) => _officialEventTypes.contains(e['event_type']))
+          .map((e) => e['key'] as String);
+      final zs = [
+        for (final key in events)
+          ?(await (standings[key] ??= _zScores(key)))[teamKey],
+      ];
+      if (zs.isEmpty) return kRatingConfig.noHistoryZ;
+      return zs.reduce((a, b) => a + b) / zs.length;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Regional, district, district championship (and its divisions) and
+  /// championship division: events every team plays under the same rules.
+  static const _officialEventTypes = {0, 1, 2, 3, 5};
+
+  /// Every team's OPR at [eventKey] in standard deviations above the event's
+  /// mean. Empty if TBA has no OPRs for it; throws if TBA can't be reached.
+  Future<Map<String, double>> _zScores(String eventKey) async {
+    final data = await tba.get('/event/$eventKey/oprs') as Map<String, dynamic>?;
+    final oprs = [
+      for (final MapEntry(:key, :value)
+          in ((data?['oprs'] as Map?) ?? const {}).entries)
+        (key as String, (value as num).toDouble()),
+    ];
+    if (oprs.length < 2) return const {};
+    final mean = oprs.fold(0.0, (s, e) => s + e.$2) / oprs.length;
+    final sd = math.sqrt(
+        oprs.fold(0.0, (s, e) => s + (e.$2 - mean) * (e.$2 - mean)) /
+            oprs.length);
+    if (sd <= 0) return const {};
+    return {for (final (key, opr) in oprs) key: (opr - mean) / sd};
   }
 
   /// One event's ratings, built from TBA alone. Combines:

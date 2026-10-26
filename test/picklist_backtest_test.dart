@@ -52,7 +52,11 @@ void main() {
         ('playoffs', quals, playoffs),
       ]) {
         final teams = legacyRatingsAsOf(e, known);
-        final model = RatingModel.fit(known, priors: e.priorOprs);
+        final model = RatingModel.fit(
+          known,
+          priors: e.priorOprs,
+          relativePriors: e.relativePriors,
+        );
         final ranked = {
           for (final s in TeamStrength.rank(
             EventRatings(teams: teams, model: model),
@@ -142,7 +146,11 @@ void main() {
       for (final s in TeamStrength.rank(
         EventRatings(
           teams: legacyRatingsAsOf(e, quals),
-          model: RatingModel.fit(quals, priors: e.priorOprs),
+          model: RatingModel.fit(
+          quals,
+          priors: e.priorOprs,
+          relativePriors: e.relativePriors,
+        ),
         ),
       ))
         s.team,

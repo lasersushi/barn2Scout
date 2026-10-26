@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:barn2scout/data/models/match_prediction.dart';
+import 'package:barn2scout/data/models/rating_model.dart';
 import 'package:barn2scout/data/models/tba_match.dart';
 
 import 'forecast_metrics.dart';
@@ -46,6 +47,7 @@ class BacktestEvent {
     this.tbaCcwms = const {},
     this.tbaRankings = const {},
     this.priors = const {},
+    this.pastSeason = const {},
   });
 
   final String key;
@@ -67,9 +69,25 @@ class BacktestEvent {
   /// Teams with no earlier event aren't in it.
   final Map<int, ({String sourceEvent, double opr})> priors;
 
+  /// Each team's z-score (standard deviations above the event's mean OPR) at
+  /// each of its official events last season, newest first, keyed by team
+  /// number. A team with no such event maps to an empty list.
+  final Map<int, List<double>> pastSeason;
+
   /// [priors]' OPRs alone: what `RatingModel.fit` takes.
   Map<int, double> get priorOprs => {
         for (final MapEntry(:key, :value) in priors.entries) key: value.opr,
+      };
+
+  /// The relative priors the app would have used for teams without one of
+  /// [priors]: the average of their [pastSeason] z-scores, or
+  /// [RatingConfig.noHistoryZ] with none.
+  Map<int, double> get relativePriors => {
+        for (final MapEntry(key: team, value: zs) in pastSeason.entries)
+          if (!priors.containsKey(team))
+            team: zs.isEmpty
+                ? kRatingConfig.noHistoryZ
+                : zs.reduce((a, b) => a + b) / zs.length,
       };
 
   /// Every team on the qualification schedule, played or not. TBA builds its
@@ -189,6 +207,9 @@ class BacktestEvent {
           matchesPlayed: row[4].toInt(),
         );
       }),
+      pastSeason: _byTeam(json['pastSeason'], (v) => [
+            for (final row in v as List) ((row as List)[1] as num).toDouble(),
+          ]),
       priors: _byTeam(json['priors'], (v) {
         final [source, opr] = v as List;
         return (sourceEvent: source as String, opr: (opr as num).toDouble());
