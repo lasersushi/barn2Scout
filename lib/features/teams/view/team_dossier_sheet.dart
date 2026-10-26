@@ -57,8 +57,8 @@ class TeamDossierSheet extends StatelessWidget {
     String pct(double? v) => v == null ? '—' : '${(v * 100).toStringAsFixed(0)}%';
 
     // Median implied contribution ± its spread — the robust per-robot figure
-    // the picklist rating is built on, as opposed to the alliance-wide score
-    // shown in 'Avg match score' below.
+    // the reliability bucket is built on, as opposed to the alliance-wide
+    // score shown in 'Avg match score' below.
     final contribSummary = r.contribMedian == null
         ? '—'
         : '${r.contribMedian!.toStringAsFixed(0)}'
@@ -143,7 +143,7 @@ class TeamDossierSheet extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Text(
-                            strength.blend.toStringAsFixed(0),
+                            strength.expectedPoints.toStringAsFixed(0),
                             style: TextStyle(
                               fontSize: 36,
                               fontWeight: FontWeight.bold,

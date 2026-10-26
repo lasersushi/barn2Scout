@@ -1,25 +1,50 @@
 import 'dart:math' as math;
 
-import 'match_prediction.dart';
 import 'team_rating.dart';
 
+/// Cutoffs for the picklist's reliability buckets ([TeamStrength.rank]), in
+/// one place so they can be re-tuned each season.
+class ReliabilityConfig {
+  const ReliabilityConfig({
+    this.minMatchesForRealSigma = 3,
+    this.steadyMax = 0.90,
+    this.variableMax = 1.20,
+  });
+
+  /// Matches a team must have played before its reliability bucket is judged.
+  final int minMatchesForRealSigma;
+
+  /// Reliability-bucket cutoffs on a team's stabilised swing relative to the
+  /// field's — see `TeamStrength._stability`. 1.0 is exactly average.
+  ///
+  /// Below [steadyMax] is "steady", below [variableMax] is "variable", above is
+  /// "streaky".
+  ///
+  /// Calibrated to the terciles of 2026 NorCal DCMP (`2026cancmp`, 60 teams,
+  /// 136 played matches), which fell at 0.90 and 1.18 and split the field
+  /// 20/21/19. Re-check each January with
+  /// `lib/prototype/rating_calibration.dart`.
+  final double steadyMax;
+  final double variableMax;
+}
+
+const ReliabilityConfig kReliabilityConfig = ReliabilityConfig();
+
 /// A team ranked for the picklist, entirely from TBA data — no human scouting.
-/// Wraps a [TeamRating] with a single blended strength number and a consistency
-/// bucket, both built on the team's *implied contribution* rather than raw OPR
-/// and raw alliance scores.
+/// Wraps a [TeamRating] with the rating model's expected points, which rank
+/// it, and a consistency bucket built on its *implied contribution*.
 class TeamStrength {
   const TeamStrength({
     required this.rating,
-    required this.blend,
+    required this.expectedPoints,
     required this.reliabilityBucket,
   });
 
   final TeamRating rating;
 
-  /// Blended strength used to rank: the robust contribution base plus small
-  /// point-denominated nudges for defense (DPR), ranking points, and win
-  /// record. Higher is better.
-  final double blend;
+  /// The points this team is expected to add to an alliance: the same
+  /// [RatingModel] number match predictions sum. Higher is better.
+  final double expectedPoints;
 
   /// Consistency from the spread of implied contribution: 0 = steady,
   /// 1 = variable, 2 = streaky, null = not enough matches played to judge.
@@ -27,50 +52,40 @@ class TeamStrength {
 
   int get team => rating.team;
 
-  /// Rank all [ratings] by blended strength (desc).
+  /// Every team in [ratings] ranked by its expected points (desc).
   ///
-  /// Two deliberate departures from a plain OPR sort, both traced to 1678 at
-  /// 2026 NorCal DCMP landing 11th after a weekend of connection issues:
+  /// That's the same number match predictions use, so the picklist and the
+  /// prediction bars never disagree about who's stronger. Replaying 65 2026
+  /// events, it predicted both the last third of quals and the playoffs
+  /// better (Brier −0.005 to −0.008, 2–3 standard errors) than plain OPR or
+  /// the blend it replaced: a median implied contribution plus nudges for
+  /// DPR, ranking points and win rate. RP and win rate are outcomes of
+  /// strength plus schedule luck, so they counted strength twice, and DPR
+  /// was mostly noise.
   ///
-  /// * The base is [TeamRating.contribMedian] — a median, which three dead
-  ///   matches out of nineteen cannot move — falling back to OPR, whose
-  ///   least-squares fit a single dead match can drag arbitrarily far.
-  /// * The DPR nudge is capped at [PredictionConfig.dprAdjClamp], because a
-  ///   disabled robot inflates its own DPR (it isn't defending, so opponents
-  ///   score freely) and uncapped that term outweighed every real signal.
+  /// The blend's median was there for 1678 at 2026 NorCal DCMP, 11th on OPR
+  /// after a weekend of dead matches. Its prior (its earlier events) holds it
+  /// up instead: 4th by expected points, 6th officially.
   static List<TeamStrength> rank(
-    Map<int, TeamRating> ratings, {
-    PredictionConfig config = kPredictionConfig,
+    EventRatings ratings, {
+    ReliabilityConfig config = kReliabilityConfig,
   }) {
-    final all = ratings.values.toList();
+    final all = ratings.teams.values.toList();
     if (all.isEmpty) return const [];
-
-    double mean(Iterable<double> xs, double fallback) =>
-        xs.isEmpty ? fallback : xs.reduce((a, b) => a + b) / xs.length;
-
-    final meanDpr = mean(all.map((r) => r.dpr), 0);
-    final meanRp = mean(all.map((r) => r.avgRp).whereType<double>(), 0);
 
     // Reliability denominator: the typical *stabilised* swing at this event.
     // See [_stability] and [_bucket].
     final stabilities = all.map(_stability).whereType<double>().toList();
     final medianStability = stabilities.isEmpty ? 0.0 : _median(stabilities);
 
-    double dprAdj(TeamRating r) => (config.wDef * (meanDpr - r.dpr))
-        .clamp(-config.dprAdjClamp, config.dprAdjClamp)
-        .toDouble();
-
     final out = [
       for (final r in all)
         TeamStrength(
           rating: r,
-          blend: (r.contribMedian ?? r.opr) +
-              dprAdj(r) +
-              config.wRp * ((r.avgRp ?? meanRp) - meanRp) +
-              config.wWin * ((r.winRate ?? 0.5) - 0.5),
+          expectedPoints: ratings.model.pointsOf('frc${r.team}'),
           reliabilityBucket: _bucket(r, config, medianStability),
         ),
-    ]..sort((a, b) => b.blend.compareTo(a.blend));
+    ]..sort((a, b) => b.expectedPoints.compareTo(a.expectedPoints));
     return out;
   }
 
@@ -115,11 +130,11 @@ class TeamStrength {
   /// * `contribStd / eventMedianStd` inverted it again, marking every *strong*
   ///   team streaky — 254 was flagged despite a 100% win rate.
   ///
-  /// [PredictionConfig.steadyMax] / [PredictionConfig.variableMax] hold the
+  /// [ReliabilityConfig.steadyMax] / [ReliabilityConfig.variableMax] hold the
   /// cutoffs.
   static int? _bucket(
     TeamRating r,
-    PredictionConfig config,
+    ReliabilityConfig config,
     double medianStability,
   ) {
     final stability = _stability(r);

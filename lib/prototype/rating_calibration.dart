@@ -3,7 +3,7 @@
 // Run:  flutter run -t lib/prototype/rating_calibration.dart
 //
 // Prints the distribution of implied contribution across one event so the
-// reliability-bucket constants (PredictionConfig.steadyMax / .variableMax) can
+// reliability-bucket constants (ReliabilityConfig.steadyMax / .variableMax) can
 // be picked from real data instead of guessed. `spread` is a team's stabilised
 // swing — std/sqrt(median) — over the field's median of the same, so 1.00 is an
 // exactly average robot and the cutoffs sit either side of it.
@@ -32,7 +32,7 @@ const List<double> _lowSwingCandidates = [1.5, 2.0, 2.5, 3.0];
 /// Candidate (steadyMax, variableMax) pairs to preview the bucket split for.
 const List<(double, double)> _candidates = [
   (0.85, 1.10),
-  (0.90, 1.20), // current values in PredictionConfig
+  (0.90, 1.20), // current values in ReliabilityConfig
   (0.95, 1.25),
   (1.00, 1.35),
 ];

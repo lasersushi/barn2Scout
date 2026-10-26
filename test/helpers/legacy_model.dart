@@ -26,6 +26,8 @@ import 'backtest_fixtures.dart';
 ///   A team that hasn't played has no ranking row yet.
 /// * Score mean/std/matches played use every played appearance, as
 ///   `ScheduleRepository.fetchTeamRatings` builds them from the match list.
+///   So does the median implied contribution: each appearance's alliance
+///   score minus its partners' OPRs (the mean OPR for an unrated partner).
 ///
 /// [legacyPredict] turns these into the old app's predictions.
 Map<int, TeamRating> legacyRatingsAsOf(
@@ -87,6 +89,30 @@ Map<int, TeamRating> legacyRatingsAsOf(
 
   final [opr, dpr] = _minNormSolve(normal, [ownScores, oppScores]);
 
+  final meanOpr = n == 0 ? 0.0 : opr.reduce((a, b) => a + b) / n;
+  double oprOf(String key) {
+    final i = index[number(key)];
+    return i == null ? meanOpr : opr[i];
+  }
+
+  final contribs = List.generate(n, (_) => <double>[]);
+  for (final m in known) {
+    for (final (keys, score) in [
+      (m.redTeams, m.redScore!),
+      (m.blueTeams, m.blueScore!),
+    ]) {
+      for (final key in keys) {
+        final i = index[number(key)];
+        if (i == null) continue;
+        var partners = 0.0;
+        for (final other in keys) {
+          if (other != key) partners += oprOf(other);
+        }
+        contribs[i].add(score - partners);
+      }
+    }
+  }
+
   return {
     for (var i = 0; i < n; i++)
       teams[i]: scores[i].isEmpty
@@ -112,8 +138,39 @@ Map<int, TeamRating> legacyRatingsAsOf(
               scoreMean: scores[i].reduce((a, b) => a + b) / scores[i].length,
               scoreStd: _sampleStd(scores[i]),
               matchesPlayed: scores[i].length,
+              contribMedian: _median(contribs[i]),
             ),
   };
+}
+
+/// The picklist's ranking value before Phase 4, frozen here so the picklist
+/// backtest can keep scoring it as the baseline: the median implied
+/// contribution (OPR without one), plus nudges for DPR (capped at ±5
+/// points), ranking points and win rate.
+Map<int, double> legacyBlend(Map<int, TeamRating> ratings) {
+  const wDef = 0.3, wRp = 2.0, wWin = 4.0, dprAdjClamp = 5.0;
+  final all = ratings.values.toList();
+  double meanOf(Iterable<double> xs) =>
+      xs.isEmpty ? 0 : xs.reduce((a, b) => a + b) / xs.length;
+  final meanDpr = meanOf(all.map((r) => r.dpr));
+  final meanRp = meanOf(all.map((r) => r.avgRp).whereType<double>());
+  return {
+    for (final r in all)
+      r.team: (r.contribMedian ?? r.opr) +
+          (wDef * (meanDpr - r.dpr)).clamp(-dprAdjClamp, dprAdjClamp) +
+          wRp * ((r.avgRp ?? meanRp) - meanRp) +
+          wWin * ((r.winRate ?? 0.5) - 0.5),
+  };
+}
+
+/// Median of [xs], null when empty.
+double? _median(List<double> xs) {
+  if (xs.isEmpty) return null;
+  final sorted = [...xs]..sort();
+  final mid = sorted.length ~/ 2;
+  return sorted.length.isOdd
+      ? sorted[mid]
+      : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 /// The app's match prediction before the rating model replaced it, frozen
