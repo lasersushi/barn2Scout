@@ -126,6 +126,47 @@ class TeamRating {
         sourceEventKey: eventKey,
       );
 
+  Map<String, dynamic> toJson() => {
+        'team': team,
+        'opr': opr,
+        'dpr': dpr,
+        'ccwm': ccwm,
+        'avgRp': avgRp,
+        'winRate': winRate,
+        'wins': wins,
+        'losses': losses,
+        'ties': ties,
+        'rank': rank,
+        'scoreMean': scoreMean,
+        'scoreStd': scoreStd,
+        'matchesPlayed': matchesPlayed,
+        'contribMedian': contribMedian,
+        'contribStd': contribStd,
+        'lowMatchCount': lowMatchCount,
+        'sourceEventKey': sourceEventKey,
+      };
+
+  // JSON doesn't keep 50.0 apart from 50, so every number is read as num.
+  factory TeamRating.fromJson(Map<String, dynamic> json) => TeamRating(
+        team: (json['team'] as num).toInt(),
+        opr: (json['opr'] as num).toDouble(),
+        dpr: (json['dpr'] as num).toDouble(),
+        ccwm: (json['ccwm'] as num).toDouble(),
+        avgRp: (json['avgRp'] as num?)?.toDouble(),
+        winRate: (json['winRate'] as num?)?.toDouble(),
+        wins: (json['wins'] as num?)?.toInt(),
+        losses: (json['losses'] as num?)?.toInt(),
+        ties: (json['ties'] as num?)?.toInt(),
+        rank: (json['rank'] as num?)?.toInt(),
+        scoreMean: (json['scoreMean'] as num?)?.toDouble(),
+        scoreStd: (json['scoreStd'] as num?)?.toDouble(),
+        matchesPlayed: (json['matchesPlayed'] as num?)?.toInt() ?? 0,
+        contribMedian: (json['contribMedian'] as num?)?.toDouble(),
+        contribStd: (json['contribStd'] as num?)?.toDouble(),
+        lowMatchCount: (json['lowMatchCount'] as num?)?.toInt(),
+        sourceEventKey: json['sourceEventKey'] as String?,
+      );
+
   /// W-L-T formatted as "8-2-0", or null if record not yet available.
   String? get record {
     if (wins == null || losses == null || ties == null) return null;

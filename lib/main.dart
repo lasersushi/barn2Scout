@@ -9,6 +9,7 @@ import 'data/repositories/event_repository.dart';
 import 'data/repositories/match_repository.dart';
 import 'data/repositories/picklist_repository.dart';
 import 'data/repositories/pit_scouting_repository.dart';
+import 'data/repositories/prior_ratings_store.dart';
 import 'data/repositories/schedule_repository.dart';
 import 'data/repositories/scouting_repository.dart';
 import 'data/repositories/settings_repository.dart';
@@ -70,6 +71,7 @@ Future<void> main() async {
             settings: ctx.read<SettingsRepository>(),
             events: ctx.read<EventRepository>(),
             teams: ctx.read<TeamRepository>(),
+            priorStore: PriorRatingsStore(),
           ),
         ),
       ],

@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:barn2scout/core/config/app_config.dart';
 import 'package:barn2scout/data/models/rating_model.dart';
 import 'package:barn2scout/data/models/tba_match.dart';
+import 'package:barn2scout/data/models/team_rating.dart';
 import 'package:barn2scout/data/repositories/event_repository.dart';
+import 'package:barn2scout/data/repositories/prior_ratings_store.dart';
 import 'package:barn2scout/data/repositories/schedule_repository.dart';
 import 'package:barn2scout/data/repositories/settings_repository.dart';
 import 'package:barn2scout/data/repositories/team_repository.dart';
@@ -96,11 +99,13 @@ double _blend(num score, num mu, double lambda) =>
     (score + lambda * mu) / (1 + lambda);
 
 /// A repo backed by a fake TBA serving [routes]. [hits] counts requests per
-/// path; paths in [failing] return 500.
+/// path; paths in [failing] return 500. A new repo is a fresh app launch:
+/// only what's in [priorStore] carries over.
 ScheduleRepository _repo(
   Map<String, Object> routes, {
   Map<String, int>? hits,
   Set<String> failing = const {},
+  PriorRatingsStore? priorStore,
 }) {
   final client = MockClient((request) async {
     final path = request.url.toString().substring(AppConfig.tbaBaseUrl.length);
@@ -116,6 +121,7 @@ ScheduleRepository _repo(
     settings: _MemorySettings(),
     events: _UnusedEvents(),
     teams: _UnusedTeams(),
+    priorStore: priorStore,
   );
 }
 
@@ -291,6 +297,124 @@ void main() {
       await repo.fetchTeamRatings('2026next', const []);
 
       expect(hits['/event/2026next/teams/keys'], 2);
+    });
+  });
+
+  group('pre-comp ratings saved for offline', () {
+    late Directory tmp;
+    late PriorRatingsStore store;
+
+    setUp(() async {
+      tmp = await Directory.systemTemp.createTemp('prior_ratings_test');
+      store = PriorRatingsStore(directoryOverride: tmp.path);
+    });
+    tearDown(() async {
+      if (await tmp.exists()) await tmp.delete(recursive: true);
+    });
+
+    final teamPaths = {
+      for (final t in ['frc1', 'frc2', 'frc3']) '/team/$t/events/2026/simple',
+    };
+
+    test('a failed fetch falls back to the saved ratings', () async {
+      await _repo(
+        _season(),
+        priorStore: store,
+      ).fetchTeamRatings('2026next', const []);
+
+      final ratings = await _repo(
+        _season(),
+        failing: teamPaths,
+        priorStore: store,
+      ).fetchTeamRatings('2026next', const []);
+
+      expect(ratings.teams[1]!.opr, 50);
+      expect(ratings.teams[1]!.sourceEventKey, '2026lateB');
+      expect(ratings.model.expectedPoints['frc2'], closeTo(35, 1e-9));
+    });
+
+    test(
+      'once quals have started, a relaunch never asks TBA for them',
+      () async {
+        final scored = [
+          _qual(1, ['frc1'], ['frc3'], redScore: 90, blueScore: 30),
+        ];
+        final current = _season(currentOprs: {'frc1': 70, 'frc3': 40});
+        await _repo(
+          current,
+          priorStore: store,
+        ).fetchTeamRatings('2026next', scored);
+
+        final hits = <String, int>{};
+        final ratings = await _repo(
+          current,
+          hits: hits,
+          priorStore: store,
+        ).fetchTeamRatings('2026next', scored);
+
+        expect(hits.containsKey('/event/2026next/teams/keys'), isFalse);
+        expect(hits.keys.where(teamPaths.contains), isEmpty);
+        // Same fit as with the network: frc1 still has its borrowed prior.
+        expect(
+          ratings.model.expectedPoints['frc1'],
+          closeTo(_blend(90, 50, kRatingConfig.priorWeight), 1e-9),
+        );
+      },
+    );
+
+    test('before quals, a relaunch still fetches them fresh', () async {
+      await _repo(
+        _season(),
+        priorStore: store,
+      ).fetchTeamRatings('2026next', const []);
+
+      final hits = <String, int>{};
+      await _repo(
+        _season(),
+        hits: hits,
+        priorStore: store,
+      ).fetchTeamRatings('2026next', const []);
+
+      // A team's newest event could still finish before this one starts.
+      expect(hits['/event/2026next/teams/keys'], 1);
+    });
+
+    test('a corrupt file counts as nothing saved', () async {
+      final file = File('${tmp.path}/prior_ratings/2026next.json');
+      await file.parent.create(recursive: true);
+      await file.writeAsString('{not json');
+
+      expect(await store.read('2026next'), isNull);
+    });
+
+    test('keep every field through JSON', () {
+      const full = TeamRating(
+        team: 254,
+        opr: 101.5,
+        dpr: 40,
+        ccwm: 61.5,
+        avgRp: 3.25,
+        winRate: 0.75,
+        wins: 9,
+        losses: 3,
+        ties: 0,
+        rank: 2,
+        scoreMean: 210.5,
+        scoreStd: 30.25,
+        matchesPlayed: 12,
+        contribMedian: 98,
+        contribStd: 12.5,
+        lowMatchCount: 1,
+        sourceEventKey: '2026casj',
+      );
+      const sparse = TeamRating(team: 9999, opr: 1, dpr: 2, ccwm: -1);
+
+      for (final r in [full, sparse]) {
+        final back = TeamRating.fromJson(
+          jsonDecode(jsonEncode(r.toJson())) as Map<String, dynamic>,
+        );
+        expect(back.toJson(), r.toJson());
+      }
     });
   });
 

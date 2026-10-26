@@ -12,6 +12,7 @@ import '../models/team_rating.dart';
 import '../services/nexus_service.dart';
 import '../services/tba_service.dart';
 import 'event_repository.dart';
+import 'prior_ratings_store.dart';
 import 'settings_repository.dart';
 import 'team_repository.dart';
 
@@ -32,6 +33,7 @@ class ScheduleRepository {
     required this.settings,
     required this.events,
     required this.teams,
+    this.priorStore,
   });
 
   final TbaService tba;
@@ -40,6 +42,10 @@ class ScheduleRepository {
 
   final EventRepository events;
   final TeamRepository teams;
+
+  /// Where borrowed pre-comp ratings are saved for offline use; null saves
+  /// nothing.
+  final PriorRatingsStore? priorStore;
 
   /// In-memory cache of this year's and next year's events. Fetched once,
   /// shared by both detect methods so we only hit TBA once even if both are
@@ -275,7 +281,9 @@ class ScheduleRepository {
   /// The model's priors are each roster team's OPR at its most recent
   /// completed event this season (see [_priorRatings]), all event long: a
   /// team's earlier events say a lot about it until its matches here have
-  /// said more. If they can't be fetched (offline), the fit does without.
+  /// said more. They're saved to [priorStore] for offline use (see
+  /// [_borrowedRatings]); with neither the network nor a saved copy, the fit
+  /// does without.
   ///
   /// [EventRatings.teams] are [eventKey]'s own ratings once a qual is scored
   /// and TBA has OPRs for it. Until then they are the borrowed ratings, with
@@ -288,11 +296,12 @@ class ScheduleRepository {
   ) async {
     // TBA serves an OPR of 0 for every team as soon as the qual schedule is
     // posted, so OPRs alone don't mean anything has been played.
+    final started = matches.any(RatingModel.isScoredQual);
     final (current, borrowed) = await (
-      matches.any(RatingModel.isScoredQual)
+      started
           ? _eventRatings(eventKey, matches)
           : Future.value(const <int, TeamRating>{}),
-      _borrowedRatings(eventKey),
+      _borrowedRatings(eventKey, started: started),
     ).wait;
     final model = RatingModel.fit(
       matches,
@@ -307,14 +316,30 @@ class ScheduleRepository {
     return EventRatings(teams: borrowed, model: model);
   }
 
-  /// [_priorRatings] for [eventKey], memoised; null if they can't be fetched.
-  Future<Map<int, TeamRating>?> _borrowedRatings(String eventKey) async {
+  /// [_priorRatings] for [eventKey]: memoised, and saved to [priorStore].
+  /// Null if they can't be fetched and none were saved.
+  ///
+  /// A team's prior only changes when another of its events finishes. Once
+  /// the event has [started] (a qual is scored), every roster team is here,
+  /// so nothing more can finish for them: ratings saved from then on are
+  /// final, and used without asking TBA again. Saved before that, they're
+  /// only a fallback for when TBA can't be reached.
+  Future<Map<int, TeamRating>?> _borrowedRatings(
+    String eventKey, {
+    required bool started,
+  }) async {
+    final saved = await priorStore?.read(eventKey);
+    if (saved != null && saved.complete) return saved.ratings;
     try {
-      return await (_priorCache[eventKey] ??= _priorRatings(eventKey));
+      return await (_priorCache[eventKey] ??= _priorRatings(eventKey)
+          .then((ratings) async {
+        await priorStore?.write(eventKey, ratings, complete: started);
+        return ratings;
+      }));
     } catch (_) {
       // Offline or TBA down — forget the failure so the next load retries.
       _priorCache.remove(eventKey);
-      return null;
+      return saved?.ratings;
     }
   }
 
