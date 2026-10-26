@@ -70,6 +70,25 @@ Map<String, Object> _season({Map<String, double> currentOprs = const {}}) => {
   '/event/2026lateB/matches/simple': <Object>[],
 };
 
+/// 2026next's qual [number], [red] vs [blue], scored unless [redScore] is null.
+TbaMatch _qual(
+  int number,
+  List<String> red,
+  List<String> blue, {
+  int? redScore,
+  int? blueScore,
+}) => TbaMatch(
+  key: '2026next_qm$number',
+  compLevel: 'qm',
+  setNumber: 1,
+  matchNumber: number,
+  redTeams: red,
+  blueTeams: blue,
+  redScore: redScore,
+  blueScore: blueScore,
+  actualTime: redScore == null ? null : DateTime(2026, 3, 6, 9, number),
+);
+
 /// A repo backed by a fake TBA serving [routes]. [hits] counts requests per
 /// path; paths in [failing] return 500.
 ScheduleRepository _repo(
@@ -96,14 +115,30 @@ ScheduleRepository _repo(
 
 void main() {
   group('ScheduleRepository.fetchTeamRatings pre-comp fallback', () {
-    test('uses the current event once TBA has OPRs for it', () async {
-      final ratings = await _repo(
-        _season(currentOprs: {'frc1': 70}),
-      ).fetchTeamRatings('2026next', const []);
+    test(
+      'uses the current event once a qual is scored and TBA has OPRs',
+      () async {
+        final ratings = await _repo(_season(currentOprs: {'frc1': 70}))
+            .fetchTeamRatings('2026next', [
+              _qual(1, ['frc1'], ['frc2'], redScore: 90, blueScore: 30),
+            ]);
 
-      expect(ratings.teams.keys, [1]);
-      expect(ratings.teams[1]!.opr, 70);
-      expect(ratings.teams[1]!.isPreComp, isFalse);
+        expect(ratings.teams.keys, [1]);
+        expect(ratings.teams[1]!.opr, 70);
+        expect(ratings.teams[1]!.isPreComp, isFalse);
+      },
+    );
+
+    test('ignores the all-zero OPRs TBA posts with the schedule', () async {
+      final ratings =
+          await _repo(
+            _season(currentOprs: {'frc1': 0, 'frc2': 0, 'frc3': 0}),
+          ).fetchTeamRatings('2026next', [
+            _qual(1, ['frc1'], ['frc2']),
+          ]);
+
+      expect(ratings.teams[1]!.isPreComp, isTrue);
+      expect(ratings.model.expectedPoints, {'frc1': 50, 'frc2': 35});
     });
 
     test('rates each team from its newest prior event', () async {
@@ -141,37 +176,42 @@ void main() {
       },
     );
 
-    test('predicts from the borrowed OPRs until a match is played', () async {
+    test('predicts from the borrowed OPRs until a qual is scored', () async {
       final ratings = await _repo(
         _season(),
       ).fetchTeamRatings('2026next', const []);
 
-      expect(ratings.model.expectedPoints, {1: 50, 2: 35});
+      expect(ratings.model.expectedPoints, {'frc1': 50, 'frc2': 35});
       // frc3 has nothing to borrow, so it counts as the borrowed average.
-      expect(ratings.model.pointsOf(3), 42.5);
+      expect(ratings.model.pointsOf('frc3'), 42.5);
+    });
+
+    test('learns from scored quals while TBA has no OPRs yet', () async {
+      final ratings = await _repo(_season()).fetchTeamRatings('2026next', [
+        _qual(1, ['frc1'], ['frc3'], redScore: 0, blueScore: 300),
+      ]);
+
+      // Still borrowed, so still labelled pre-comp…
+      expect(ratings.teams[1]!.isPreComp, isTrue);
+      // …but the result counts, with λ = 1: frc1 halfway from 0 to its
+      // borrowed 50, and frc3 (no prior) halfway from 300 to the 150-point
+      // average.
+      expect(ratings.model.expectedPoints['frc1'], closeTo(25, 1e-9));
+      expect(ratings.model.expectedPoints['frc3'], closeTo(225, 1e-9));
     });
 
     test('fits the current event once TBA has OPRs for it', () async {
-      final ratings = await _repo(
-        _season(currentOprs: {'frc1': 70, 'frc2': 10, 'frc3': 40}),
-      ).fetchTeamRatings('2026next', [
-        TbaMatch(
-          key: '2026next_qm1',
-          compLevel: 'qm',
-          setNumber: 1,
-          matchNumber: 1,
-          redTeams: const ['frc1'],
-          blueTeams: const ['frc2'],
-          redScore: 90,
-          blueScore: 30,
-          actualTime: DateTime(2026, 3, 6, 9),
-        ),
-      ]);
+      final ratings =
+          await _repo(
+            _season(currentOprs: {'frc1': 70, 'frc2': 10, 'frc3': 40}),
+          ).fetchTeamRatings('2026next', [
+            _qual(1, ['frc1'], ['frc2'], redScore: 90, blueScore: 30),
+          ]);
 
       // One match: each robot's own score pulled toward the 60-point average
       // with λ = 1, so halfway: (90 + 60) / 2 and (30 + 60) / 2.
-      expect(ratings.model.expectedPoints[1], closeTo(75, 1e-9));
-      expect(ratings.model.expectedPoints[2], closeTo(45, 1e-9));
+      expect(ratings.model.expectedPoints['frc1'], closeTo(75, 1e-9));
+      expect(ratings.model.expectedPoints['frc2'], closeTo(45, 1e-9));
       // Pre-comp priors are only fetched before the event has OPRs.
       expect(ratings.teams[1]!.isPreComp, isFalse);
     });

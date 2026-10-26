@@ -18,8 +18,7 @@ class Cholesky {
 
   /// The factor of `scale·I`, an n×n identity scaled by [scale] (> 0): every
   /// pivot is √scale. Grow it with [addOuter].
-  Cholesky.scaledIdentity(int n, double scale)
-      : _l = _scaledIdentity(n, scale);
+  Cholesky.scaledIdentity(int n, double scale) : _l = _scaledIdentity(n, scale);
 
   /// Lower-triangular factor, row-major. Entries above the diagonal stay 0.
   final List<List<double>> _l;

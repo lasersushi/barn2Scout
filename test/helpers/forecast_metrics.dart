@@ -113,11 +113,17 @@ double logLossOf(Forecast f) {
 }
 
 /// How much [b] beats [a] on [loss], match by match: the mean of
-/// `loss(b) − loss(a)` over the same matches, and its standard error.
-/// Negative means [b] is better. Pairing cancels out how hard each match was
-/// to call, so this separates two models far more sharply than comparing
-/// their averages would.
-({double mean, double se}) pairedDelta(
+/// `loss(b) − loss(a)` over the same matches, its standard error, and the
+/// mean per event. Negative means [b] is better. Pairing cancels out how hard
+/// each match was to call, so this separates two models far more sharply
+/// than comparing their averages would.
+///
+/// Matches at one event aren't independent: they share teams and a fit, and
+/// some events simply suit one model better. So the standard error is
+/// clustered by event, which makes it wider than treating every match as its
+/// own draw would. With only a handful of events it's rough itself, and the
+/// per-event means show whether one event is carrying the result.
+({double mean, double se, Map<String, double> byEvent}) pairedDelta(
   List<Forecast> a,
   List<Forecast> b,
   double Function(Forecast) loss,
@@ -133,10 +139,34 @@ double logLossOf(Forecast f) {
         loss(b[i]) - loss(a[i]),
   ];
   final mean = _mean(d);
-  final variance =
-      d.map((x) => (x - mean) * (x - mean)).reduce((s, x) => s + x) /
-          (d.length - 1);
-  return (mean: mean, se: math.sqrt(variance / d.length));
+
+  // Each event's summed deviation from the overall mean.
+  final deviations = <String, double>{};
+  final byEvent = <String, List<double>>{};
+  for (var i = 0; i < d.length; i++) {
+    deviations.update(a[i].eventKey, (s) => s + d[i] - mean,
+        ifAbsent: () => d[i] - mean);
+    (byEvent[a[i].eventKey] ??= []).add(d[i]);
+  }
+  final g = deviations.length;
+  final double se;
+  if (g < 2) {
+    // One event: nothing to cluster over, so treat matches as independent.
+    final variance =
+        d.map((x) => (x - mean) * (x - mean)).reduce((s, x) => s + x) /
+            (d.length - 1);
+    se = math.sqrt(variance / d.length);
+  } else {
+    final spread = deviations.values.map((s) => s * s).reduce((s, x) => s + x);
+    se = math.sqrt(g / (g - 1) * spread) / d.length;
+  }
+  return (
+    mean: mean,
+    se: se,
+    byEvent: {
+      for (final MapEntry(:key, :value) in byEvent.entries) key: _mean(value),
+    },
+  );
 }
 
 /// One row per model.

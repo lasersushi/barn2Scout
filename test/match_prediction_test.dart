@@ -30,8 +30,7 @@ EventRatings _ratings(
       teams: teams,
       model: RatingModel(
         expectedPoints: {
-          for (final MapEntry(:key, :value) in points.entries)
-            'frc$key': value,
+          for (final MapEntry(:key, :value) in points.entries) 'frc$key': value,
         },
         meanTeamPoints: points.isEmpty
             ? 0

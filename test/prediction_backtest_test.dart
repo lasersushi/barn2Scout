@@ -152,8 +152,9 @@ void main() {
     final lead1 = rows['old model, lead 1']!;
 
     final paired = StringBuffer('paired, new − old (negative = new is better, '
-        '± 1 standard error)\n');
-    final deltas = <String, ({double mean, double se})>{};
+        '± 1 standard error clustered by event), then per event\n');
+    final deltas =
+        <String, ({double mean, double se, Map<String, double> byEvent})>{};
     for (final lead in const [1, 6]) {
       for (final MapEntry(key: metric, value: loss) in {
         'Brier': brierOf,
@@ -167,6 +168,11 @@ void main() {
         paired.writeln('  ${'$metric, lead $lead'.padRight(18)}'
             '${d.mean.toStringAsFixed(4).padLeft(8)} ± '
             '${d.se.toStringAsFixed(4)}');
+        paired.writeln('    ${[
+          for (final MapEntry(:key, :value) in d.byEvent.entries)
+            '${key.substring(4)} ${value >= 0 ? '+' : ''}'
+                '${value.toStringAsFixed(3)}',
+        ].join('  ')}');
       }
     }
 
@@ -209,10 +215,12 @@ void main() {
       }
     }
 
-    // The new model has to beat the old one on the same matches by more
-    // than two standard errors, on both scores, at both leads.
+    // The new model has to beat the old one on the same matches, on both
+    // scores, at both leads, by more than 2.4 standard errors: the 95% t
+    // value for 8 events (7 degrees of freedom), since the error is
+    // estimated from so few.
     for (final MapEntry(key: label, value: d) in deltas.entries) {
-      expect(d.mean + 2 * d.se, lessThan(0), reason: label);
+      expect(d.mean + 2.4 * d.se, lessThan(0), reason: label);
     }
   });
 }

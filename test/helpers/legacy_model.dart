@@ -8,8 +8,8 @@ import 'package:barn2scout/data/models/team_rating.dart';
 
 import 'backtest_fixtures.dart';
 
-/// Rebuilds the [TeamRating]s the app's current prediction model would have
-/// been handed, given that TBA had posted exactly the [known] quals.
+/// Rebuilds the [TeamRating]s the app's old (pre-Phase 2) prediction model
+/// would have been handed, given that TBA had posted exactly the [known] quals.
 ///
 /// Live, the app reads OPR/DPR from TBA's `/oprs` and avg RP / W-L-T from
 /// `/rankings`, which only ever describe the event "so far" — TBA can't be
@@ -122,7 +122,9 @@ Map<int, TeamRating> legacyRatingsAsOf(
 ///   score(alliance) = Σ OPR
 ///   margin          = (ΣOPR + Σadj)_red − (ΣOPR + Σadj)_blue, where adj
 ///                     nudges for DPR, ranking points and win rate
-///   σ per alliance  = mean member score std (25 below 3 matches played)
+///   σ per alliance  = mean of member σs: a team's own score std once it has
+///                     3+ matches, else the mean of those teams' stds (25
+///                     until any team has 3)
 ///   P(red wins)     = 1 − Φ(−margin / √(σ_red² + σ_blue²))
 MatchPrediction legacyPredict(TbaMatch match, Map<int, TeamRating> ratings) {
   const wDef = 0.3, wRp = 2.0, wWin = 4.0;

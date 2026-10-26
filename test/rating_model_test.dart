@@ -30,6 +30,29 @@ TbaMatch _qual(
           redScore == null ? null : DateTime(2026, 3, 6, 9, minute ?? number),
     );
 
+/// σ rebuilt the slow way: each of [quals] predicted by its own fit to the
+/// quals listed before it, then blended with the assumed miss as
+/// [RatingModel.fit] does.
+double _slowSigma(List<TbaMatch> quals) {
+  const config = kRatingConfig;
+  var squaredMisses = 0.0;
+  var scoreTotal = 0.0;
+  for (var k = 0; k < quals.length; k++) {
+    final before = RatingModel.fit(quals.take(k));
+    final m = quals[k];
+    double sum(List<String> teams) =>
+        teams.fold(0, (t, key) => t + before.pointsOf(key));
+    final miss =
+        (m.redScore! - m.blueScore!) - (sum(m.redTeams) - sum(m.blueTeams));
+    squaredMisses += miss * miss;
+    scoreTotal += m.redScore! + m.blueScore!;
+  }
+  final assumed = config.sigmaPerMeanScore * scoreTotal / (2 * quals.length);
+  return math.sqrt(
+      (squaredMisses + config.sigmaPriorWeight * assumed * assumed) /
+          (quals.length + config.sigmaPriorWeight));
+}
+
 void main() {
   group('RatingModel.fit expected points', () {
     test('one match pulls each robot toward the event average', () {
@@ -41,26 +64,30 @@ void main() {
       ]);
 
       expect(model.meanTeamPoints, 15);
-      for (final team in [1, 2, 3]) {
+      for (final team in ['frc1', 'frc2', 'frc3']) {
         expect(model.expectedPoints[team], closeTo(11.25, 1e-9));
       }
-      for (final team in [4, 5, 6]) {
+      for (final team in ['frc4', 'frc5', 'frc6']) {
         expect(model.expectedPoints[team], closeTo(18.75, 1e-9));
       }
     });
 
     test('with a tiny λ it is exactly OPR: TBA\'s end-of-quals numbers', () {
-      // Proves the normal equations are built right: once every team has
-      // played, AᵀA is invertible and the λ → 0 limit is plain OPR.
+      // Proves the normal equations are built right. Every team having
+      // played isn't enough to make AᵀA invertible (after the one match
+      // above, all six have, and it has rank 2), but by the end of quals
+      // there are far more alliance results than teams, so it is here, and
+      // the λ → 0 limit is plain OPR.
       for (final e in BacktestEvent.loadAll()) {
         final model = RatingModel.fit(
           e.playedQuals,
           config: const RatingConfig(priorWeight: 1e-6),
         );
-        expect(model.expectedPoints.keys.toSet(), e.tbaOprs.keys.toSet(),
+        expect(model.expectedPoints.keys.toSet(),
+            {for (final team in e.tbaOprs.keys) 'frc$team'},
             reason: e.key);
         for (final MapEntry(key: team, value: opr) in e.tbaOprs.entries) {
-          expect(model.expectedPoints[team], closeTo(opr, 0.01),
+          expect(model.expectedPoints['frc$team'], closeTo(opr, 0.01),
               reason: '${e.key} team $team');
         }
       }
@@ -69,9 +96,9 @@ void main() {
     test('nothing played: the fit is just the priors', () {
       final model = RatingModel.fit(const [], priors: {1: 50, 2: 30});
 
-      expect(model.expectedPoints, {1: 50, 2: 30});
+      expect(model.expectedPoints, {'frc1': 50, 'frc2': 30});
       expect(model.meanTeamPoints, 40);
-      expect(model.pointsOf(3), 40);
+      expect(model.pointsOf('frc3'), 40);
       // No misses yet, so σ is all assumption: half a 3 × 40 alliance score.
       expect(model.marginSigma, closeTo(60, 1e-9));
     });
@@ -82,8 +109,8 @@ void main() {
       final without = RatingModel.fit([match]);
       final withPrior = RatingModel.fit([match], priors: {1: 100});
 
-      expect(withPrior.expectedPoints[1],
-          greaterThan(without.expectedPoints[1]! + 10));
+      expect(withPrior.expectedPoints['frc1'],
+          greaterThan(without.expectedPoints['frc1']! + 10));
     });
 
     test('no matches and no priors: knows nothing, predicts nothing', () {
@@ -93,7 +120,7 @@ void main() {
       expect(model.marginSigma, 0);
     });
 
-    test('ignores playoffs and unplayed quals', () {
+    test('ignores playoffs and unscored quals', () {
       final played = _qual(
           1, ['frc1', 'frc2', 'frc3'], ['frc4', 'frc5', 'frc6'],
           redScore: 30, blueScore: 60);
@@ -107,54 +134,70 @@ void main() {
 
       expect(model.expectedPoints, alone.expectedPoints);
       expect(model.marginSigma, alone.marginSigma);
-      // Team 7 is only on an unplayed qual: no number, so it's average.
-      expect(model.expectedPoints.containsKey(7), isFalse);
-      expect(model.pointsOf(7), model.meanTeamPoints);
+      // Team 7 is only on an unscored qual: no number, so it's average.
+      expect(model.expectedPoints.containsKey('frc7'), isFalse);
+      expect(model.pointsOf('frc7'), model.meanTeamPoints);
     });
 
-    test('a B-team takes its share instead of handing it to its partners', () {
+    test('counts a scored qual that has no start time', () {
+      // Some offseason uploads post scores without actual_time; TBA's own
+      // OPRs still count those matches.
+      final model = RatingModel.fit([
+        const TbaMatch(
+          key: 't_qm1',
+          compLevel: 'qm',
+          setNumber: 1,
+          matchNumber: 1,
+          redTeams: ['frc1', 'frc2', 'frc3'],
+          blueTeams: ['frc4', 'frc5', 'frc6'],
+          redScore: 30,
+          blueScore: 60,
+        ),
+      ]);
+
+      expect(model.expectedPoints['frc1'], closeTo(11.25, 1e-9));
+    });
+
+    test('a B-team gets its own share instead of handing it to its partners',
+        () {
       final model = RatingModel.fit([
         _qual(1, ['frc1', 'frc2', 'frc254B'], ['frc4', 'frc5', 'frc6'],
             redScore: 30, blueScore: 60),
       ]);
 
-      // Same as the all-numbered match above; 254B just can't be looked up.
-      expect(model.expectedPoints[1], closeTo(11.25, 1e-9));
-      expect(model.expectedPoints.length, 5);
+      // Same as the all-numbered match above.
+      expect(model.expectedPoints['frc1'], closeTo(11.25, 1e-9));
+      expect(model.expectedPoints['frc254B'], closeTo(11.25, 1e-9));
+      expect(model.expectedPoints.length, 6);
     });
   });
 
   group('RatingModel.fit marginSigma', () {
     test('is the RMS of honest pre-match misses, blended with the assumed miss',
         () {
-      // Rebuild σ the slow way, one independent fit per match, on the input
-      // shuffled: the model must still replay in the order matches were
-      // played and predict each from only the quals before it.
+      // On shuffled input the model must still replay the matches in order,
+      // predicting each from only the quals before it.
       final quals = BacktestEvent.loadAll().first.playedQuals.take(30).toList();
       final shuffled = [...quals]..shuffle(math.Random(751));
-      const config = kRatingConfig;
 
-      var squaredMisses = 0.0;
-      var scoreTotal = 0.0;
-      for (var k = 0; k < quals.length; k++) {
-        final before = RatingModel.fit(quals.take(k));
-        final m = quals[k];
-        double sum(List<String> teams) => teams.fold(
-            0,
-            (t, key) =>
-                t + before.pointsOf(int.parse(TbaMatch.displayNumber(key))));
-        final miss =
-            (m.redScore! - m.blueScore!) - (sum(m.redTeams) - sum(m.blueTeams));
-        squaredMisses += miss * miss;
-        scoreTotal += m.redScore! + m.blueScore!;
-      }
-      final assumed =
-          config.sigmaPerMeanScore * scoreTotal / (2 * quals.length);
-      final expected = math.sqrt(
-          (squaredMisses + config.sigmaPriorWeight * assumed * assumed) /
-              (quals.length + config.sigmaPriorWeight));
+      expect(RatingModel.fit(shuffled).marginSigma,
+          closeTo(_slowSigma(quals), 1e-6));
+    });
 
-      expect(RatingModel.fit(shuffled).marginSigma, closeTo(expected, 1e-6));
+    test('replays in the order matches were played, not match number', () {
+      // Qual 2 ran first; qual 1 was replayed after it.
+      final first = _qual(2, ['frc1', 'frc2', 'frc3'], ['frc4', 'frc5', 'frc6'],
+          redScore: 200, blueScore: 20, minute: 5);
+      final second = _qual(
+          1, ['frc1', 'frc2', 'frc7'], ['frc4', 'frc5', 'frc8'],
+          redScore: 40, blueScore: 150, minute: 30);
+      final third = _qual(3, ['frc3', 'frc5', 'frc7'], ['frc6', 'frc8', 'frc1'],
+          redScore: 90, blueScore: 110, minute: 40);
+
+      final sigma = RatingModel.fit([second, first, third]).marginSigma;
+
+      expect(sigma, closeTo(_slowSigma([first, second, third]), 1e-9));
+      expect(sigma, isNot(closeTo(_slowSigma([second, first, third]), 1e-3)));
     });
 
     test('lands at a sane share of a real event\'s scores', () {
