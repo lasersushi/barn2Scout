@@ -11,6 +11,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:barn2scout/data/models/tba_match.dart';
 import 'package:barn2scout/data/services/tba_service.dart';
@@ -50,6 +51,7 @@ Future<void> main(List<String> args) async {
           await tba.get('/event/$key/rankings') as Map<String, dynamic>;
 
       final priors = await _priors(tba, key, event['start_date'] as String);
+      final pastSeason = await _pastSeason(tba, key);
 
       final matches = raw.map(_trim).toList();
       final file = File('${dir.path}/$key.json');
@@ -70,6 +72,9 @@ Future<void> main(List<String> args) async {
         // its OPR at its newest earlier event this season (see
         // ScheduleRepository._priorRatings).
         '"priors": ${jsonEncode(priors)},',
+        // Each team's standing at last season's official events, in standard
+        // deviations above that event's mean OPR, newest first.
+        '"pastSeason": ${jsonEncode(pastSeason)},',
         '"matches": [',
         matches.map(jsonEncode).join(',\n'),
         ']',
@@ -130,10 +135,61 @@ Future<Map<String, List<Object>>> _priors(
   return byTeam;
 }
 
+/// Every roster team's z-score (standard deviations above the event's mean
+/// OPR) at each of its official events last season, newest first:
+/// `{teamKey: [[eventKey, z], …]}`. A team with none maps to an empty list.
+Future<Map<String, List<List<Object>>>> _pastSeason(
+  TbaService tba,
+  String eventKey,
+) async {
+  final year = int.parse(eventKey.substring(0, 4)) - 1;
+  final roster =
+      (await tba.get('/event/$eventKey/teams/keys') as List).cast<String>();
+  final zs = <String, Map<String, double>>{};
+  final out = <String, List<List<Object>>>{};
+  for (final team in roster) {
+    final events = (await tba.get('/team/$team/events/$year/simple') as List)
+        .cast<Map<String, dynamic>>()
+        .where((e) => _officialTypes.contains(e['event_type']))
+        .toList()
+      ..sort((a, b) =>
+          (b['end_date'] as String).compareTo(a['end_date'] as String));
+    out[team] = [
+      for (final e in events)
+        if ((zs[e['key'] as String] ??= _zScores(
+              await _oprs(tba, e['key'] as String),
+            ))[team]
+            case final z?)
+          [e['key'] as String, z],
+    ];
+  }
+  return out;
+}
+
+/// Regional, district, district championship (and its divisions) and
+/// championship division: events every team plays to the same rules.
+const _officialTypes = {0, 1, 2, 3, 5};
+
+/// Each team's OPR in standard deviations above the event's mean.
+Map<String, double> _zScores(Map<String, double> oprs) {
+  if (oprs.length < 2) return const {};
+  final mean = oprs.values.reduce((a, b) => a + b) / oprs.length;
+  final sd = math.sqrt(
+      oprs.values.map((v) => (v - mean) * (v - mean)).reduce((a, b) => a + b) /
+          oprs.length);
+  if (sd <= 0) return const {};
+  return {for (final e in oprs.entries) e.key: (e.value - mean) / sd};
+}
+
 /// An event's OPRs, empty if TBA has none. An all-zero map (posted with the
 /// schedule, before anything is played) counts as none.
 Future<Map<String, double>> _oprs(TbaService tba, String eventKey) async {
-  final data = await tba.get('/event/$eventKey/oprs') as Map<String, dynamic>?;
+  final Map<String, dynamic>? data;
+  try {
+    data = await tba.get('/event/$eventKey/oprs') as Map<String, dynamic>?;
+  } on TbaException {
+    return const {};
+  }
   final oprs = {
     for (final MapEntry(:key, :value)
         in ((data?['oprs'] as Map?) ?? const {}).entries)
