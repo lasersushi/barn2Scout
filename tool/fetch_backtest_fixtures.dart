@@ -49,6 +49,8 @@ Future<void> main(List<String> args) async {
       final rankings =
           await tba.get('/event/$key/rankings') as Map<String, dynamic>;
 
+      final priors = await _priors(tba, key, event['start_date'] as String);
+
       final matches = raw.map(_trim).toList();
       final file = File('${dir.path}/$key.json');
       // One match per line keeps the fixture diffable without pretty-printing
@@ -64,6 +66,10 @@ Future<void> main(List<String> args) async {
         '"tbaDprs": ${jsonEncode(stats['dprs'] ?? {})},',
         '"tbaCcwms": ${jsonEncode(stats['ccwms'] ?? {})},',
         '"tbaRankings": ${jsonEncode(_trimRankings(rankings))},',
+        // What the app would have borrowed for each team before this event:
+        // its OPR at its newest earlier event this season (see
+        // ScheduleRepository._priorRatings).
+        '"priors": ${jsonEncode(priors)},',
         '"matches": [',
         matches.map(jsonEncode).join(',\n'),
         ']',
@@ -75,12 +81,65 @@ Future<void> main(List<String> args) async {
           .map(TbaMatch.fromJson)
           .where((m) => m.compLevel == 'qm' && m.isPlayed);
       stdout.writeln('$key: ${matches.length} matches '
-          '(${quals.length} played quals), '
+          '(${quals.length} played quals, '
+          '${priors.length} teams with a prior), '
           '${(file.lengthSync() / 1024).toStringAsFixed(0)} KB');
     }
   } finally {
     client.close();
   }
+}
+
+/// Each roster team's prior as `ScheduleRepository._priorRatings` picks it,
+/// except that "completed" means ended before [startDate] rather than before
+/// today, so a replayed event never borrows from one that came after it.
+///
+/// Returns `{teamKey: [sourceEventKey, opr]}`.
+Future<Map<String, List<Object>>> _priors(
+  TbaService tba,
+  String eventKey,
+  String startDate,
+) async {
+  final year = eventKey.substring(0, 4);
+  final roster =
+      (await tba.get('/event/$eventKey/teams/keys') as List).cast<String>();
+  final history = <String, List<String>>{};
+  for (final team in roster) {
+    final events = (await tba.get('/team/$team/events/$year/simple') as List)
+        .cast<Map<String, dynamic>>()
+        .where((e) =>
+            e['key'] != eventKey &&
+            (e['end_date'] as String).compareTo(startDate) < 0)
+        .toList()
+      ..sort((a, b) =>
+          (b['end_date'] as String).compareTo(a['end_date'] as String));
+    history[team] = [for (final e in events) e['key'] as String];
+  }
+
+  final oprs = <String, Map<String, double>>{};
+  final byTeam = <String, List<Object>>{};
+  for (final team in roster) {
+    for (final source in history[team]!) {
+      final rated = oprs[source] ??= await _oprs(tba, source);
+      final opr = rated[team];
+      if (opr == null) continue; // not rated there — try an older event
+      byTeam[team] = [source, opr];
+      break;
+    }
+  }
+  return byTeam;
+}
+
+/// An event's OPRs, empty if TBA has none. An all-zero map (posted with the
+/// schedule, before anything is played) counts as none.
+Future<Map<String, double>> _oprs(TbaService tba, String eventKey) async {
+  final data = await tba.get('/event/$eventKey/oprs') as Map<String, dynamic>?;
+  final oprs = {
+    for (final MapEntry(:key, :value)
+        in ((data?['oprs'] as Map?) ?? const {}).entries)
+      key as String: (value as num).toDouble(),
+  };
+  return oprs.values.every((v) => v == 0) ? const {} : oprs;
 }
 
 /// Keeps what [TbaMatch.fromJson] reads, plus what TBA's rankings and the

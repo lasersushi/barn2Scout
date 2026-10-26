@@ -45,6 +45,7 @@ class BacktestEvent {
     this.tbaDprs = const {},
     this.tbaCcwms = const {},
     this.tbaRankings = const {},
+    this.priors = const {},
   });
 
   final String key;
@@ -60,6 +61,16 @@ class BacktestEvent {
   final Map<int, double> tbaDprs;
   final Map<int, double> tbaCcwms;
   final Map<int, TbaRankingRow> tbaRankings;
+
+  /// What the app would have borrowed for each team before the event: its
+  /// OPR at its newest earlier event this season, keyed by team number.
+  /// Teams with no earlier event aren't in it.
+  final Map<int, ({String sourceEvent, double opr})> priors;
+
+  /// [priors]' OPRs alone: what `RatingModel.fit` takes.
+  Map<int, double> get priorOprs => {
+        for (final MapEntry(:key, :value) in priors.entries) key: value.opr,
+      };
 
   /// Every team on the qualification schedule, played or not. TBA builds its
   /// OPR team list from these, so a team is on `/oprs` before it has played.
@@ -177,6 +188,10 @@ class BacktestEvent {
           ties: row[3].toInt(),
           matchesPlayed: row[4].toInt(),
         );
+      }),
+      priors: _byTeam(json['priors'], (v) {
+        final [source, opr] = v as List;
+        return (sourceEvent: source as String, opr: (opr as num).toDouble());
       }),
     );
   }
