@@ -1,6 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import '../../../data/models/team_rating.dart';
 import '../../../data/models/team_strength.dart';
 import '../../../data/repositories/schedule_repository.dart'
     show ScheduleRepository, EventStatus;
@@ -23,8 +22,7 @@ class RatingsCubit extends Cubit<RatingsState> {
         return;
       }
       final matches = await _repo.getMatches(detected.key);
-      final Map<int, TeamRating> ratings =
-          await _repo.fetchTeamRatings(detected.key, matches);
+      final ratings = await _repo.fetchTeamRatings(detected.key, matches);
 
       final teams = TeamStrength.rank(ratings);
       emit(teams.isEmpty ? const RatingsEmpty() : RatingsLoaded(teams: teams));

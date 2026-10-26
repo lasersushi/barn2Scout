@@ -9,7 +9,7 @@ import 'pre_comp_banner.dart';
 /// Official event standings from TBA — teams sorted by their current rank.
 ///
 /// Before the event's first matches there are no standings, so it instead
-/// lists the roster in blended-strength order from each team's previous event
+/// lists the roster in expected-points order from each team's previous event
 /// this season, under a [PreCompBanner].
 class RankingsTab extends StatelessWidget {
   const RankingsTab({super.key});
@@ -22,7 +22,7 @@ class RankingsTab extends StatelessWidget {
         RatingsNoEvent() => const _NoEventState(),
         RatingsEmpty() => const _NoRankingsYet(),
         RatingsError s => _ErrorState(message: s.message),
-        // Already in blend order from TeamStrength.rank.
+        // Already in expected-points order from TeamStrength.rank.
         RatingsLoaded s when s.isPreComp => _RankingsList(
             teams: [for (final ts in s.teams) ts.rating], preComp: true),
         RatingsLoaded s => _RankingsList(teams: _sortedByRank(s.teams

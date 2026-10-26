@@ -52,7 +52,7 @@ class ScheduleCubit extends Cubit<ScheduleState> {
       final pastEventName = sameEvent ? eventName : results[4] as String;
 
       // Prediction ratings are non-essential — never let them fail the load.
-      Map<int, TeamRating> ratings = {};
+      var ratings = EventRatings.empty;
       try {
         ratings = await _repo.fetchTeamRatings(current.key, allMatches);
       } catch (_) {

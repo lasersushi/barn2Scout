@@ -173,7 +173,7 @@ class _PickTile extends StatelessWidget {
       subtitle: stats == null
           ? const Text('no rating')
           : Text(
-              '${stats!.blend.toStringAsFixed(0)} rating · OPR ${stats!.rating.opr.toStringAsFixed(0)}'),
+              '${stats!.expectedPoints.toStringAsFixed(0)} rating · OPR ${stats!.rating.opr.toStringAsFixed(0)}'),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

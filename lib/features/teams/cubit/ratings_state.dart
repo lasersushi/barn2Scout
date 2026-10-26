@@ -22,7 +22,7 @@ class RatingsEmpty extends RatingsState {
 class RatingsLoaded extends RatingsState {
   const RatingsLoaded({required this.teams});
 
-  /// Teams ranked by blended strength, descending.
+  /// Teams ranked by expected points, descending.
   final List<TeamStrength> teams;
 
   /// True before the event's first matches, when every rating is borrowed

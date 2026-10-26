@@ -41,8 +41,10 @@ class _Board extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Teams arrive sorted by blend desc; the top score scales the bars.
-    final maxBlend = teams.isEmpty ? 1.0 : teams.first.blend.clamp(1.0, 1e9);
+    // Teams arrive sorted by expected points desc; the top one scales the
+    // bars.
+    final maxPoints =
+        teams.isEmpty ? 1.0 : teams.first.expectedPoints.clamp(1.0, 1e9);
 
     return BlocBuilder<PicklistCubit, PicklistState>(
       builder: (context, pick) {
@@ -64,7 +66,7 @@ class _Board extends StatelessWidget {
                   strength: teams[i],
                   rank: i + 1,
                   status: pick.statusOf(teams[i].team),
-                  maxBlend: maxBlend.toDouble(),
+                  maxPoints: maxPoints.toDouble(),
                   totalTeams: teams.length,
                 ),
               ),
@@ -149,14 +151,14 @@ class _PickRow extends StatelessWidget {
     required this.strength,
     required this.rank,
     required this.status,
-    required this.maxBlend,
+    required this.maxPoints,
     required this.totalTeams,
   });
 
   final TeamStrength strength;
   final int rank;
   final PickStatus status;
-  final double maxBlend;
+  final double maxPoints;
   final int totalTeams;
 
   @override
@@ -246,7 +248,7 @@ class _PickRow extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       _Bar(
-                        frac: strength.blend / maxBlend,
+                        frac: strength.expectedPoints / maxPoints,
                         fill: cs.primary,
                         track: cs.surfaceContainerHighest,
                       ),
@@ -262,7 +264,7 @@ class _PickRow extends StatelessWidget {
                 Column(
                   children: [
                     Text(
-                      strength.blend.toStringAsFixed(0),
+                      strength.expectedPoints.toStringAsFixed(0),
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -285,9 +287,9 @@ class _PickRow extends StatelessWidget {
   /// One-line TBA summary beneath the team name.
   String _miniStats(TeamRating r) {
     final parts = <String>[
-      // Median implied contribution — the number the rating is actually built
-      // on. Shown beside OPR so a gap between the two is visible rather than
-      // looking like the rating is wrong.
+      // Median implied contribution: what the robot typically put up, which
+      // dead matches can't drag down the way they drag OPR. The rating
+      // isn't built on it, so a gap between them is worth a look.
       if (r.contribMedian != null) 'CON ${r.contribMedian!.toStringAsFixed(0)}',
       'OPR ${r.opr.toStringAsFixed(0)}',
       'DPR ${r.dpr.toStringAsFixed(0)}',
