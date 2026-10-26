@@ -26,6 +26,12 @@ flutter build ios --simulator
 
 # Run a prototype entry point directly
 flutter run -t lib/prototype/pit_prototype.dart
+
+# Score match predictions and the picklist against recorded real events
+flutter test test/prediction_backtest_test.dart test/picklist_backtest_test.dart
+
+# Re-download the backtest fixtures from TBA (reads the key from app_config.dart)
+dart run tool/fetch_backtest_fixtures.dart
 ```
 
 Hot reload: press `r` in the terminal running `flutter run`. Hot restart: `R`.
@@ -41,7 +47,7 @@ lib/
   core/
     config/app_config.dart  # Team identity + API keys (gitignored — update each event)
     theme/               # AppTheme — seed color 0xFF0060A7 (Barn2 Robotics blue)
-    utils/                # stats_utils (normalCdf), qr_record_codec, app_version (version comparison)
+    utils/                # stats_utils (normalCdf), linear_algebra (Cholesky, for the rating model), qr_record_codec, app_version (version comparison)
   data/
     models/               # Isar @collection classes + plain value types
     services/             # IsarService, TbaService, NexusService
@@ -58,11 +64,12 @@ lib/
     settings/                 # Preferences + account section backed by JSON file (not Isar); includes customizable auto-logout time
     update/                    # UpdateCubit + UpdateBanner — GitHub APK OTA (Android only)
   prototype/                  # Throwaway explorations; never imported from real code
+tool/                          # Dev-only Dart CLIs (backtest fixture fetcher); never imported by the app
 ```
 
 **Data flow rule:** UI and Blocs talk only to repositories, never directly to Isar/TBA/Supabase.
 
-**Rankings / analytics rule:** All objective metrics (OPR, DPR, CCWM, scores, W-L-T) come from TBA only. Human scouting data is qualitative only and must never feed rankings, predictions, or any objective metric.
+**Rankings / analytics rule:** All objective metrics (OPR, DPR, CCWM, scores, W-L-T) come from TBA only. Human scouting data is qualitative only and must never feed rankings, predictions, or any objective metric. Numbers the app computes on-device from TBA data still count as TBA-only. That includes the `RatingModel` fit to TBA match scores, its priors from TBA OPRs at earlier events, and last-season z-scores from TBA OPRs.
 
 ## First-time setup
 
@@ -186,9 +193,16 @@ Admins also get `ScoutXpPage` (Manage tab → "Scout XP"): the same `Leaderboard
 
 ## Match prediction system
 
-`MatchPrediction.compute(match, EventRatings)` is TBA-data-only. Alliance expected score = Σ `RatingModel.expectedPoints` (`lib/data/models/rating_model.dart`): a ridge-regularised OPR fit on-device to the event's scored quals. It pulls each team toward its prior: its OPR at its previous event this season (weight λ = `RatingConfig.priorWeight`); else its standing last season, as a z-score turned into points at this event's scale (`relativePriors`, `relativePriorScale`, `relativePriorWeight`, `noHistoryZ` for rookies); else the event's mean points per robot (`levelPriorWeight`). It's keyed by TBA team key, so B-teams get their own value, and a team the model doesn't know counts as `meanTeamPoints`. P(red wins) = `normalCdf(margin / σ)`, where σ comes from replaying the event's quals, each predicted from only the quals before it, and is widened ×`playoffSigmaScale` in playoffs. The bar is hidden when the model knows none of the six teams. `MatchPredictionBar` renders as a color-split bar under each upcoming `MatchTile`. Accuracy is measured by `test/prediction_backtest_test.dart`. It replays 8 real 2026 events, each fixture recording the priors the app would have borrowed, against a frozen copy of the old model and against the same fit without priors.
+`MatchPrediction.compute(match, EventRatings)` is TBA-data-only. Alliance expected score = Σ `RatingModel.expectedPoints` (`lib/data/models/rating_model.dart`): a ridge-regularised OPR fit on-device to the event's scored quals. It pulls each team toward its prior: its OPR at its previous event this season (weight λ = `RatingConfig.priorWeight`); else its standing last season, as a z-score turned into points at this event's scale (`relativePriors`, `relativePriorScale`, `relativePriorWeight`, `noHistoryZ` for rookies); else the event's mean points per robot (`levelPriorWeight`). It's keyed by TBA team key, so B-teams get their own value, and a team the model doesn't know counts as `meanTeamPoints`. P(red wins) = `normalCdf(margin / σ)`, where σ comes from replaying the event's quals, each predicted from only the quals before it, and is widened ×`playoffSigmaScale` in playoffs. The bar is hidden when the model knows none of the six teams. `MatchPredictionBar` renders as a color-split bar under each upcoming `MatchTile`. Accuracy is measured by `test/prediction_backtest_test.dart`. It replays 8 real 2026 events, each fixture recording the priors the app would have borrowed, against a frozen copy of the old model (`test/helpers/legacy_model.dart`) and against the same fit without priors and without last season.
 
 **Pre-comp ratings.** `ScheduleRepository.fetchTeamRatings` falls back in this order: the current event's OPRs (once a qual is scored, since TBA posts all-zero OPRs with the schedule), then each roster team's newest completed event *this season* that TBA rated it at, then nothing. Last season's OPRs are never shown, because a different game scores in different points. For a team with no rated event this season, though, the model's prior is its average z-score (standard deviations above its event's mean OPR) over last season's official events, which does carry over between games. A team with no events last season gets `noHistoryZ`; one whose lookup fails gets nothing, so it isn't mistaken for a rookie. Borrowed ratings carry `TeamRating.sourceEventKey` (`isPreComp`). Their OPRs are the `RatingModel`'s priors all event long, not only before quals: `fetchTeamRatings` fetches them on the current-event path too, and fits without them if that fetch fails. Before quals, the borrowed ratings themselves flow unchanged through `MatchPrediction` (sets `preComp`, so the bar says "Pre-comp estimate"), `TeamStrength.rank`, Rankings (projected order plus a `PreCompBanner`, since there are no standings), Picklist and the dossier (stats labelled with the source event). The fetch is memoised per event in memory (`_priorCache`, holding the Future so concurrent loads share one fetch) and saved per event to `prior_ratings/{eventKey}.json` in the app support directory (`PriorRatingsStore`). Before quals the saved copy is only a fallback for when TBA can't be reached. Once a qual is scored, no roster team can finish another event, so a copy saved then is marked complete and used without asking TBA again. Before TBA posts the match schedule, only the team lists show pre-comp data.
+
+**Re-tuning each season.** `RatingConfig` and `ReliabilityConfig` were tuned on 2026, and a new game can move them. Once a few weeks of the new season are played:
+1. Swap `_defaultEvents` in `tool/fetch_backtest_fixtures.dart` for new-season events. Keep the same spread: week 1, a team's second event, a DCMP, a CMP division.
+2. Run the fetcher.
+3. Re-run both backtests and change one knob at a time, comparing the paired deltas the report prints, not raw table gaps.
+
+The fixtures are too few to tune on alone. The 2026 values came from a sweep over 65 events (numbers in each knob's doc comment).
 
 ## Update system
 
@@ -203,7 +217,7 @@ Two separate update paths — both are transparent to scouters:
 
 ## Offline caching
 
-`MatchRepository` and `EventRepository` are Isar-backed caches so the schedule works offline after first load. `ScheduleRepository` writes through to them and reads from them when the network is unavailable. They are distinct from the scouting record repositories and never contain user-generated data.
+`MatchRepository` and `EventRepository` are Isar-backed caches so the schedule works offline after first load. `ScheduleRepository` writes through to them and reads from them when the network is unavailable. They are distinct from the scouting record repositories and never contain user-generated data. `PriorRatingsStore` does the same for the rating model's borrowed priors, as one JSON file per event (see "Pre-comp ratings").
 
 ## State management
 
@@ -217,3 +231,5 @@ Two separate update paths — both are transparent to scouters:
 ## Testing
 
 No mocking library — `dev_dependencies` is just `flutter_test`. Repository fakes are hand-written under `test/helpers/` (e.g. `FakeScoutingRepository`): in-memory, implement the real repository class, and `noSuchMethod` throws `UnimplementedError` for any method the test doesn't need. Follow that pattern for new fakes rather than adding `mocktail`/`bloc_test`.
+
+The two backtests (`prediction_backtest_test.dart`, `picklist_backtest_test.dart`) replay recorded TBA data from `test/fixtures/backtest/`. The prediction one fails unless the model beats the frozen old model, and itself without priors, by more than 2.4 standard errors (clustered by event). The picklist one fails if the rating is clearly worse than the old blend. Both print a report; read it when changing anything in `rating_model.dart`, `team_strength.dart` or `fetchTeamRatings`.

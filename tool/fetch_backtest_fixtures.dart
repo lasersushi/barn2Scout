@@ -6,8 +6,9 @@
 //   dart run tool/fetch_backtest_fixtures.dart              # default events
 //   dart run tool/fetch_backtest_fixtures.dart 2026cur      # just these
 //
-// Re-run each January with events from the new season so the backtest keeps
-// measuring the model against the current game.
+// Once a few weeks of a new season are played, swap in its events and re-run,
+// so the backtest keeps measuring the model against the current game (see
+// "Re-tuning each season" in CLAUDE.md).
 
 import 'dart:convert';
 import 'dart:io';
