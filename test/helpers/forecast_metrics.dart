@@ -5,6 +5,7 @@ import 'dart:math' as math;
 class Forecast {
   const Forecast({
     required this.eventKey,
+    this.matchKey = '',
     required this.phase,
     required this.redWinPct,
     required this.predictedMargin,
@@ -14,6 +15,7 @@ class Forecast {
   });
 
   final String eventKey;
+  final String matchKey;
 
   /// Which third of the event's quals the match fell in: 0 early, 1 middle,
   /// 2 late. Early is where a model has the least to go on.
@@ -61,8 +63,7 @@ double _median(Iterable<double> xs) {
 
 /// Mean squared error of the win probability. 0 is perfect; always saying 50%
 /// scores 0.25.
-double brierScore(Iterable<Forecast> fs) =>
-    _mean(fs.map((f) => math.pow(f.redWinPct - f.outcome, 2).toDouble()));
+double brierScore(Iterable<Forecast> fs) => _mean(fs.map(brierOf));
 
 /// Probabilities are clamped to [logLossFloor, 1 − logLossFloor] before
 /// [logLoss] scores them, so a single confident miss costs at most
@@ -72,10 +73,7 @@ const logLossFloor = 1e-4;
 /// Average surprise in nats. Unlike Brier it punishes confident misses
 /// steeply (up to the [logLossFloor] cap), so it's the metric that exposes
 /// overconfidence. Always saying 50% scores ln 2 ≈ 0.693.
-double logLoss(Iterable<Forecast> fs) => _mean(fs.map((f) {
-      final p = f.redWinPct.clamp(logLossFloor, 1 - logLossFloor);
-      return -(f.outcome * math.log(p) + (1 - f.outcome) * math.log(1 - p));
-    }));
+double logLoss(Iterable<Forecast> fs) => _mean(fs.map(logLossOf));
 
 /// Forecasts the [logLossFloor] clamp touched — each is a near-certain call.
 int clampedCount(Iterable<Forecast> fs) => fs
@@ -104,6 +102,42 @@ double zeroMarginRmse(Iterable<Forecast> fs) => math.sqrt(
 /// predictions can dominate it; the median shows the typical miss.
 double medianMarginError(Iterable<Forecast> fs) => _median(
     fs.map((f) => (f.predictedMargin - (f.redScore - f.blueScore)).abs()));
+
+/// Brier score of a single forecast.
+double brierOf(Forecast f) => math.pow(f.redWinPct - f.outcome, 2).toDouble();
+
+/// Log loss of a single forecast (see [logLoss]).
+double logLossOf(Forecast f) {
+  final p = f.redWinPct.clamp(logLossFloor, 1 - logLossFloor);
+  return -(f.outcome * math.log(p) + (1 - f.outcome) * math.log(1 - p));
+}
+
+/// How much [b] beats [a] on [loss], match by match: the mean of
+/// `loss(b) − loss(a)` over the same matches, and its standard error.
+/// Negative means [b] is better. Pairing cancels out how hard each match was
+/// to call, so this separates two models far more sharply than comparing
+/// their averages would.
+({double mean, double se}) pairedDelta(
+  List<Forecast> a,
+  List<Forecast> b,
+  double Function(Forecast) loss,
+) {
+  if (a.length != b.length) {
+    throw ArgumentError('${a.length} vs ${b.length} forecasts');
+  }
+  final d = [
+    for (var i = 0; i < a.length; i++)
+      if (a[i].matchKey != b[i].matchKey)
+        throw ArgumentError('${a[i].matchKey} paired with ${b[i].matchKey}')
+      else
+        loss(b[i]) - loss(a[i]),
+  ];
+  final mean = _mean(d);
+  final variance =
+      d.map((x) => (x - mean) * (x - mean)).reduce((s, x) => s + x) /
+          (d.length - 1);
+  return (mean: mean, se: math.sqrt(variance / d.length));
+}
 
 /// One row per model.
 String forecastTable(Map<String, List<Forecast>> rows) {

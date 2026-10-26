@@ -1,5 +1,7 @@
 import 'package:barn2scout/data/models/match_prediction.dart';
+import 'package:barn2scout/data/models/rating_model.dart';
 import 'package:barn2scout/data/models/tba_match.dart';
+import 'package:barn2scout/data/models/team_rating.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'helpers/backtest_fixtures.dart';
@@ -130,18 +132,43 @@ void main() {
   });
 
   test('report', () {
+    // The old model as the app ran it until Phase 2: TBA's OPRs plus nudges.
+    // The new one: the app's own MatchPrediction on a fresh RatingModel fit.
+    final models = <String,
+        MatchPrediction Function(BacktestEvent, List<TbaMatch>, TbaMatch)>{
+      'old model': (e, known, m) =>
+          legacyPredict(m, legacyRatingsAsOf(e, known)),
+      'new model': (e, known, m) => MatchPrediction.compute(
+          m, EventRatings(model: RatingModel.fit(known))),
+    };
     final rows = {
       for (final lead in const [1, 6])
-        'app today, lead $lead': [
-          for (final e in events)
-            ...e.replayQuals(
-              (known, m) =>
-                  MatchPrediction.compute(m, legacyRatingsAsOf(e, known)),
-              lead: lead,
-            ),
-        ],
+        for (final MapEntry(key: name, value: predict) in models.entries)
+          '$name, lead $lead': [
+            for (final e in events)
+              ...e.replayQuals((known, m) => predict(e, known, m), lead: lead),
+          ],
     };
-    final lead1 = rows['app today, lead 1']!;
+    final lead1 = rows['old model, lead 1']!;
+
+    final paired = StringBuffer('paired, new − old (negative = new is better, '
+        '± 1 standard error)\n');
+    final deltas = <String, ({double mean, double se})>{};
+    for (final lead in const [1, 6]) {
+      for (final MapEntry(key: metric, value: loss) in {
+        'Brier': brierOf,
+        'log loss': logLossOf,
+      }.entries) {
+        final d = deltas['$metric, lead $lead'] = pairedDelta(
+          rows['old model, lead $lead']!,
+          rows['new model, lead $lead']!,
+          loss,
+        );
+        paired.writeln('  ${'$metric, lead $lead'.padRight(18)}'
+            '${d.mean.toStringAsFixed(4).padLeft(8)} ± '
+            '${d.se.toStringAsFixed(4)}');
+      }
+    }
 
     // ignore: avoid_print
     print('\nPrediction backtest — ${events.length} events, '
@@ -149,12 +176,11 @@ void main() {
         'Lead k = ratings as loaded when the match k-1 places earlier '
         'started; lead 1 is the freshest the app can be.\n\n'
         '${forecastTable(rows)}\n'
-        '${calibrationTable('app today, lead 1', lead1)}');
+        '$paired\n'
+        '${calibrationTable('old model, lead 1', lead1)}\n'
+        '${calibrationTable('new model, lead 1', rows['new model, lead 1']!)}');
 
     for (final MapEntry(key: label, value: fs) in rows.entries) {
-      // Once TBA has posted any OPRs every scheduled team is on its list, so
-      // the app draws a bar for every match the replay scores.
-      expect(fs.where((f) => !f.shown), isEmpty, reason: label);
       for (final metric in [
         accuracy(fs),
         brierScore(fs),
@@ -167,6 +193,26 @@ void main() {
         expect(fs.where((f) => f.phase == phase), isNotEmpty,
             reason: '$label, phase $phase');
       }
+    }
+
+    // Once TBA has posted any OPRs every scheduled team is on its list, so
+    // the old app drew a bar for every match the replay scores.
+    for (final lead in const [1, 6]) {
+      expect(rows['old model, lead $lead']!.where((f) => !f.shown), isEmpty);
+    }
+    // The new model only hides a match when it knows none of the six teams,
+    // and then it really has nothing to say.
+    for (final lead in const [1, 6]) {
+      for (final f in rows['new model, lead $lead']!.where((f) => !f.shown)) {
+        // To within normalCdf's erf approximation (±1.5e-7).
+        expect(f.redWinPct, closeTo(0.5, 1e-6), reason: f.matchKey);
+      }
+    }
+
+    // The new model has to beat the old one on the same matches by more
+    // than two standard errors, on both scores, at both leads.
+    for (final MapEntry(key: label, value: d) in deltas.entries) {
+      expect(d.mean + 2 * d.se, lessThan(0), reason: label);
     }
   });
 }

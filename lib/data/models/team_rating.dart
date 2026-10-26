@@ -1,3 +1,20 @@
+import 'rating_model.dart';
+
+/// One event's ratings, as [ScheduleRepository.fetchTeamRatings] returns them:
+/// TBA's own numbers for each team, for display, and the [RatingModel] fit to
+/// the event's scores, which match predictions read.
+class EventRatings {
+  const EventRatings({this.teams = const {}, this.model = RatingModel.empty});
+
+  /// No ratings at all: predictions don't render.
+  static const empty = EventRatings();
+
+  /// TBA's numbers per team (OPR, rank, record…), keyed by team number.
+  final Map<int, TeamRating> teams;
+
+  final RatingModel model;
+}
+
 /// Everything we know about one team's strength at an event, sourced entirely
 /// from The Blue Alliance — no human scouting. Assembled by
 /// [ScheduleRepository.fetchTeamRatings] from `/oprs`, `/rankings`, and the

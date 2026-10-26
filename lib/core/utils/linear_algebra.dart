@@ -16,10 +16,25 @@ class Cholesky {
   /// shows up while factoring.
   Cholesky(List<List<double>> a) : _l = _factor(a);
 
+  /// The factor of `scale·I`, an n×n identity scaled by [scale] (> 0): every
+  /// pivot is √scale. Grow it with [addOuter].
+  Cholesky.scaledIdentity(int n, double scale)
+      : _l = _scaledIdentity(n, scale);
+
   /// Lower-triangular factor, row-major. Entries above the diagonal stay 0.
   final List<List<double>> _l;
 
   int get size => _l.length;
+
+  static List<List<double>> _scaledIdentity(int n, double scale) {
+    // Written as !(scale > 0) so NaN is rejected too.
+    if (!(scale > 0)) throw ArgumentError('scale must be positive');
+    final pivot = math.sqrt(scale);
+    return [
+      for (var i = 0; i < n; i++)
+        [for (var j = 0; j < n; j++) i == j ? pivot : 0.0],
+    ];
+  }
 
   static List<List<double>> _factor(List<List<double>> a) {
     final n = a.length;
@@ -55,6 +70,35 @@ class Cholesky {
       }
     }
     return l;
+  }
+
+  /// Updates the factor in place to that of `a + v·vᵀ`: O(n²), against the
+  /// O(n³) of factoring the new matrix from scratch.
+  ///
+  /// Adding a row v to a matrix A adds v·vᵀ to AᵀA, so OPR's normal equations
+  /// can take results one alliance at a time and stay factored throughout.
+  /// Column k folds v's k-th entry into pivot k with a rotation, then passes
+  /// what's left of v down to the columns after it. Adding v·vᵀ keeps the
+  /// matrix positive-definite, so pivots only grow and the update can't fail.
+  void addOuter(List<double> v) {
+    final n = size;
+    if (v.length != n) {
+      throw ArgumentError('v has ${v.length} entries, matrix is $n×$n');
+    }
+    final x = [...v];
+    for (var k = 0; k < n; k++) {
+      // Nothing left to fold into this column, so it stays as it is.
+      if (x[k] == 0) continue;
+      final pivot = _l[k][k];
+      final r = math.sqrt(pivot * pivot + x[k] * x[k]);
+      final c = r / pivot;
+      final s = x[k] / pivot;
+      _l[k][k] = r;
+      for (var i = k + 1; i < n; i++) {
+        _l[i][k] = (_l[i][k] + s * x[i]) / c;
+        x[i] = c * x[i] - s * _l[i][k];
+      }
+    }
   }
 
   /// Solves `a·x = b` for the factored `a`: forward substitution through `L`,

@@ -108,6 +108,7 @@ class BacktestEvent {
       final p = predict(known, quals[i]);
       out.add(Forecast(
         eventKey: key,
+        matchKey: quals[i].key,
         // Thirds of the event by play order, so "early" means the same
         // stretch of an event whatever the lead.
         phase: (3 * i) ~/ quals.length,

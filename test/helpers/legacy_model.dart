@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 
 import 'package:barn2scout/core/utils/linear_algebra.dart';
+import 'package:barn2scout/core/utils/stats_utils.dart';
+import 'package:barn2scout/data/models/match_prediction.dart';
 import 'package:barn2scout/data/models/tba_match.dart';
 import 'package:barn2scout/data/models/team_rating.dart';
 
@@ -24,6 +26,8 @@ import 'backtest_fixtures.dart';
 ///   A team that hasn't played has no ranking row yet.
 /// * Score mean/std/matches played use every played appearance, as
 ///   `ScheduleRepository.fetchTeamRatings` builds them from the match list.
+///
+/// [legacyPredict] turns these into the old app's predictions.
 Map<int, TeamRating> legacyRatingsAsOf(
   BacktestEvent event,
   List<TbaMatch> known,
@@ -110,6 +114,68 @@ Map<int, TeamRating> legacyRatingsAsOf(
               matchesPlayed: scores[i].length,
             ),
   };
+}
+
+/// The app's match prediction before the rating model replaced it, frozen
+/// here so the backtest can keep scoring it as the baseline.
+///
+///   score(alliance) = Σ OPR
+///   margin          = (ΣOPR + Σadj)_red − (ΣOPR + Σadj)_blue, where adj
+///                     nudges for DPR, ranking points and win rate
+///   σ per alliance  = mean member score std (25 below 3 matches played)
+///   P(red wins)     = 1 − Φ(−margin / √(σ_red² + σ_blue²))
+MatchPrediction legacyPredict(TbaMatch match, Map<int, TeamRating> ratings) {
+  const wDef = 0.3, wRp = 2.0, wWin = 4.0;
+  const fallbackSigma = 25.0, minMatchesForRealSigma = 3;
+  final all = ratings.values.toList();
+
+  double meanOf(Iterable<double> xs, double fallback) =>
+      xs.isEmpty ? fallback : xs.reduce((a, b) => a + b) / xs.length;
+
+  final meanOpr = meanOf(all.map((r) => r.opr), 0);
+  final meanDpr = meanOf(all.map((r) => r.dpr), 0);
+  final meanRp = meanOf(all.map((r) => r.avgRp).whereType<double>(), 0);
+  final realStds = all
+      .where((r) =>
+          r.scoreStd != null && r.matchesPlayed >= minMatchesForRealSigma)
+      .map((r) => r.scoreStd!);
+  final typicalSigma = meanOf(realStds, fallbackSigma);
+
+  ({double expected, double adj, double sigma, int rated}) sideOf(
+      List<String> teamKeys) {
+    var expected = 0.0, adj = 0.0, sigmaSum = 0.0;
+    var rated = 0;
+    for (final key in teamKeys) {
+      final r = ratings[int.tryParse(TbaMatch.displayNumber(key))];
+      expected += r?.opr ?? meanOpr;
+      adj += wDef * (meanDpr - (r?.dpr ?? meanDpr)) +
+          wRp * ((r?.avgRp ?? meanRp) - meanRp) +
+          wWin * ((r?.winRate ?? 0.5) - 0.5);
+      sigmaSum += (r != null &&
+              r.scoreStd != null &&
+              r.matchesPlayed >= minMatchesForRealSigma)
+          ? r.scoreStd!
+          : typicalSigma;
+      if (r != null) rated++;
+    }
+    final sigma = teamKeys.isEmpty ? typicalSigma : sigmaSum / teamKeys.length;
+    return (expected: expected, adj: adj, sigma: sigma, rated: rated);
+  }
+
+  final red = sideOf(match.redTeams);
+  final blue = sideOf(match.blueTeams);
+  final margin = (red.expected + red.adj) - (blue.expected + blue.adj);
+  final sigma = math.sqrt(red.sigma * red.sigma + blue.sigma * blue.sigma);
+  final redWin = sigma < 1e-9
+      ? (margin > 0 ? 1.0 : (margin < 0 ? 0.0 : 0.5))
+      : 1.0 - normalCdf(-margin / sigma);
+
+  return MatchPrediction(
+    redScore: red.expected,
+    blueScore: blue.expected,
+    redWinPct: redWin.clamp(0.0, 1.0),
+    ratedTeams: red.rated + blue.rated,
+  );
 }
 
 /// TBA's OPR solve, `pinv(M) · s`: the minimum-norm least-squares answer,

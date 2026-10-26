@@ -1,20 +1,18 @@
-import 'dart:math' as math;
-
 import '../../core/utils/stats_utils.dart';
 import 'tba_match.dart';
 import 'team_rating.dart';
 
-/// Tunable weights for the blended prediction model. All in one place so the
-/// model can be re-tuned over a season without hunting through logic.
+/// Tunable weights for the picklist's blended strength and reliability buckets
+/// ([TeamStrength.rank]). All in one place so they can be re-tuned over a
+/// season without hunting through logic.
 ///
-/// OPR does the heavy lifting (it sets the predicted scores directly); the
-/// other terms are small nudges in points.
+/// Match predictions don't read any of these any more; their knobs live in
+/// [RatingConfig].
 class PredictionConfig {
   const PredictionConfig({
     this.wDef = 0.3,
     this.wRp = 2.0,
     this.wWin = 4.0,
-    this.fallbackSigma = 25.0,
     this.minMatchesForRealSigma = 3,
     this.dprAdjClamp = 5.0,
     this.steadyMax = 0.90,
@@ -31,10 +29,7 @@ class PredictionConfig {
   /// (scales `winRate - 0.5`).
   final double wWin;
 
-  /// Spread to assume for a team without enough played matches to measure one.
-  final double fallbackSigma;
-
-  /// Matches a team must have played before we trust its measured spread.
+  /// Matches a team must have played before its reliability bucket is judged.
   final int minMatchesForRealSigma;
 
   /// Hard cap, in points, on how far the DPR term may move a team's picklist
@@ -46,9 +41,6 @@ class PredictionConfig {
   /// term outweighed every real signal: at 2026 NorCal DCMP it moved 1678
   /// (DPR 142 against a 58–111 field) 14 points and dropped them below a team
   /// they beat on OPR, RP, and official rank alike.
-  ///
-  /// Applied in [TeamStrength.rank] only — [MatchPrediction.compute] is
-  /// deliberately left uncapped for now.
   final double dprAdjClamp;
 
   /// Reliability-bucket cutoffs on a team's stabilised swing relative to the
@@ -67,8 +59,8 @@ class PredictionConfig {
 
 const PredictionConfig kPredictionConfig = PredictionConfig();
 
-/// A predicted outcome for one match. Built purely from TBA-derived
-/// [TeamRating]s — see [MatchPrediction.compute]. Pure value type, safe to
+/// A predicted outcome for one match, built purely from TBA-derived
+/// [EventRatings] — see [MatchPrediction.compute]. Pure value type, safe to
 /// build inside `build()`.
 class MatchPrediction {
   const MatchPrediction({
@@ -80,7 +72,8 @@ class MatchPrediction {
     this.preComp = false,
   });
 
-  /// Expected alliance scores = sum of member OPRs.
+  /// Expected alliance scores: the sum of each member's expected points. The
+  /// same numbers decide [redWinPct], so the bar and the scores always agree.
   final double redScore;
   final double blueScore;
 
@@ -88,8 +81,8 @@ class MatchPrediction {
   final double redWinPct;
   double get blueWinPct => 1.0 - redWinPct;
 
-  /// How many of the [totalTeams] had real TBA data (the rest used event
-  /// averages). Drives the "×/6" confidence note.
+  /// How many of the [totalTeams] the model knew something about (the rest
+  /// were taken as event-average). Drives the "×/6" confidence note.
   final int ratedTeams;
   final int totalTeams;
 
@@ -97,101 +90,55 @@ class MatchPrediction {
   /// i.e. this event hasn't produced OPRs yet. See [TeamRating.isPreComp].
   final bool preComp;
 
-  /// No prediction worth showing until the event has produced some ratings.
+  /// No prediction worth showing until the model knows at least one team.
   bool get hasData => ratedTeams > 0;
 
-  /// Compute a prediction for [match] from the event's [ratings] map
-  /// (team number → [TeamRating]).
+  /// Predicts [match] from the event's [ratings].
   ///
-  /// Model:
-  ///   score(alliance)  = Σ OPR
-  ///   margin mean      = (ΣOPR + Σadj)_red - (ΣOPR + Σadj)_blue
-  ///                      where adj blends defense (DPR), ranking (RP), record
-  ///   margin spread    = √(σ_red² + σ_blue²), σ per alliance = mean team σ
-  ///   P(red wins)      = 1 - Φ(-margin / spread)
-  factory MatchPrediction.compute(
-    TbaMatch match,
-    Map<int, TeamRating> ratings, {
-    PredictionConfig config = kPredictionConfig,
-  }) {
-    final all = ratings.values.toList();
-
-    double meanOf(Iterable<double> xs, double fallback) =>
-        xs.isEmpty ? fallback : xs.reduce((a, b) => a + b) / xs.length;
-
-    // Event-wide averages — used as the fallback for any team TBA hasn't
-    // rated yet, so a missing team is treated as "average", never zero.
-    final meanOpr = meanOf(all.map((r) => r.opr), 0);
-    final meanDpr = meanOf(all.map((r) => r.dpr), 0);
-    final meanRp = meanOf(all.map((r) => r.avgRp).whereType<double>(), 0);
-
-    // Data-driven typical spread: the average measured team spread. Falls back
-    // to the config constant only before any team has enough matches.
-    final realStds = all
-        .where((r) =>
-            r.scoreStd != null &&
-            r.matchesPlayed >= config.minMatchesForRealSigma)
-        .map((r) => r.scoreStd!);
-    final typicalSigma =
-        realStds.isEmpty ? config.fallbackSigma : meanOf(realStds, config.fallbackSigma);
-
+  /// Model ([RatingModel] does the fitting):
+  ///   score(alliance) = Σ expected points of its robots
+  ///   margin          = score(red) − score(blue)
+  ///   P(red wins)     = Φ(margin / σ), σ = [RatingModel.sigmaFor]: the
+  ///                     event's replayed margin miss (only an assumed one
+  ///                     before any qual), widened for playoffs
+  factory MatchPrediction.compute(TbaMatch match, EventRatings ratings) {
+    final model = ratings.model;
     var preComp = false;
 
-    ({double expected, double adj, double sigma, int rated}) sideOf(
-        List<String> teamKeys) {
-      var expected = 0.0;
-      var adj = 0.0;
-      var sigmaSum = 0.0;
+    ({double score, int rated}) sideOf(List<String> teamKeys) {
+      var score = 0.0;
       var rated = 0;
-      var n = 0;
-
       for (final key in teamKeys) {
-        n++;
-        final num = int.tryParse(TbaMatch.displayNumber(key));
-        final r = num == null ? null : ratings[num];
-
-        final opr = r?.opr ?? meanOpr;
-        final dpr = r?.dpr ?? meanDpr;
-        final rp = r?.avgRp ?? meanRp;
-        final win = r?.winRate ?? 0.5;
-        final sigma = (r != null &&
-                r.scoreStd != null &&
-                r.matchesPlayed >= config.minMatchesForRealSigma)
-            ? r.scoreStd!
-            : typicalSigma;
-
-        expected += opr;
-        adj += config.wDef * (meanDpr - dpr) +
-            config.wRp * (rp - meanRp) +
-            config.wWin * (win - 0.5);
-        sigmaSum += sigma;
-        if (r != null) rated++;
-        if (r?.isPreComp ?? false) preComp = true;
+        // By TBA key, so a B-team ("frc254B") keeps its own fitted value.
+        final points = model.expectedPoints[key];
+        // A team the model knows nothing about counts as event-average,
+        // never zero.
+        score += points ?? model.meanTeamPoints;
+        if (points == null) continue;
+        rated++;
+        final team = int.tryParse(TbaMatch.displayNumber(key));
+        if (team != null && (ratings.teams[team]?.isPreComp ?? false)) {
+          preComp = true;
+        }
       }
-
-      // Mean (not sum) of the member spreads: each team's measured σ is already
-      // an alliance-level score spread, so summing would over-count ~3×.
-      final sigma = n == 0 ? typicalSigma : sigmaSum / n;
-      return (expected: expected, adj: adj, sigma: sigma, rated: rated);
+      return (score: score, rated: rated);
     }
 
     final red = sideOf(match.redTeams);
     final blue = sideOf(match.blueTeams);
-
-    final marginMean = (red.expected + red.adj) - (blue.expected + blue.adj);
-    final sigmaMargin =
-        math.sqrt(red.sigma * red.sigma + blue.sigma * blue.sigma);
+    final margin = red.score - blue.score;
+    final sigma = model.sigmaFor(match);
 
     final double redWin;
-    if (sigmaMargin < 1e-9) {
-      redWin = marginMean > 0 ? 1.0 : (marginMean < 0 ? 0.0 : 0.5);
+    if (sigma < 1e-9) {
+      redWin = margin > 0 ? 1.0 : (margin < 0 ? 0.0 : 0.5);
     } else {
-      redWin = 1.0 - normalCdf(-marginMean / sigmaMargin);
+      redWin = normalCdf(margin / sigma);
     }
 
     return MatchPrediction(
-      redScore: red.expected,
-      blueScore: blue.expected,
+      redScore: red.score,
+      blueScore: blue.score,
       redWinPct: redWin.clamp(0.0, 1.0),
       ratedTeams: red.rated + blue.rated,
       preComp: preComp,

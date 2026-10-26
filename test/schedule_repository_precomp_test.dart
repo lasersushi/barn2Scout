@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:barn2scout/core/config/app_config.dart';
+import 'package:barn2scout/data/models/tba_match.dart';
 import 'package:barn2scout/data/repositories/event_repository.dart';
 import 'package:barn2scout/data/repositories/schedule_repository.dart';
 import 'package:barn2scout/data/repositories/settings_repository.dart';
@@ -100,9 +101,9 @@ void main() {
         _season(currentOprs: {'frc1': 70}),
       ).fetchTeamRatings('2026next', const []);
 
-      expect(ratings.keys, [1]);
-      expect(ratings[1]!.opr, 70);
-      expect(ratings[1]!.isPreComp, isFalse);
+      expect(ratings.teams.keys, [1]);
+      expect(ratings.teams[1]!.opr, 70);
+      expect(ratings.teams[1]!.isPreComp, isFalse);
     });
 
     test('rates each team from its newest prior event', () async {
@@ -110,9 +111,9 @@ void main() {
         _season(),
       ).fetchTeamRatings('2026next', const []);
 
-      expect(ratings[1]!.opr, 50);
-      expect(ratings[1]!.sourceEventKey, '2026lateB');
-      expect(ratings[1]!.isPreComp, isTrue);
+      expect(ratings.teams[1]!.opr, 50);
+      expect(ratings.teams[1]!.sourceEventKey, '2026lateB');
+      expect(ratings.teams[1]!.isPreComp, isTrue);
     });
 
     test(
@@ -122,8 +123,8 @@ void main() {
           _season(),
         ).fetchTeamRatings('2026next', const []);
 
-        expect(ratings[2]!.opr, 35);
-        expect(ratings[2]!.sourceEventKey, '2026earlyA');
+        expect(ratings.teams[2]!.opr, 35);
+        expect(ratings.teams[2]!.sourceEventKey, '2026earlyA');
       },
     );
 
@@ -134,11 +135,46 @@ void main() {
           _season(),
         ).fetchTeamRatings('2026next', const []);
 
-        expect(ratings.containsKey(3), isFalse);
+        expect(ratings.teams.containsKey(3), isFalse);
         // frc9 was rated at lateB but isn't registered for 2026next.
-        expect(ratings.containsKey(9), isFalse);
+        expect(ratings.teams.containsKey(9), isFalse);
       },
     );
+
+    test('predicts from the borrowed OPRs until a match is played', () async {
+      final ratings = await _repo(
+        _season(),
+      ).fetchTeamRatings('2026next', const []);
+
+      expect(ratings.model.expectedPoints, {1: 50, 2: 35});
+      // frc3 has nothing to borrow, so it counts as the borrowed average.
+      expect(ratings.model.pointsOf(3), 42.5);
+    });
+
+    test('fits the current event once TBA has OPRs for it', () async {
+      final ratings = await _repo(
+        _season(currentOprs: {'frc1': 70, 'frc2': 10, 'frc3': 40}),
+      ).fetchTeamRatings('2026next', [
+        TbaMatch(
+          key: '2026next_qm1',
+          compLevel: 'qm',
+          setNumber: 1,
+          matchNumber: 1,
+          redTeams: const ['frc1'],
+          blueTeams: const ['frc2'],
+          redScore: 90,
+          blueScore: 30,
+          actualTime: DateTime(2026, 3, 6, 9),
+        ),
+      ]);
+
+      // One match: each robot's own score pulled toward the 60-point average
+      // with λ = 1, so halfway: (90 + 60) / 2 and (30 + 60) / 2.
+      expect(ratings.model.expectedPoints[1], closeTo(75, 1e-9));
+      expect(ratings.model.expectedPoints[2], closeTo(45, 1e-9));
+      // Pre-comp priors are only fetched before the event has OPRs.
+      expect(ratings.teams[1]!.isPreComp, isFalse);
+    });
 
     test('concurrent loads share one fetch', () async {
       final hits = <String, int>{};
@@ -161,7 +197,10 @@ void main() {
       };
       final repo = _repo(_season(), hits: hits, failing: teamPaths);
 
-      expect(await repo.fetchTeamRatings('2026next', const []), isEmpty);
+      expect(
+        (await repo.fetchTeamRatings('2026next', const [])).teams,
+        isEmpty,
+      );
       await repo.fetchTeamRatings('2026next', const []);
 
       expect(hits['/event/2026next/teams/keys'], 2);

@@ -18,9 +18,9 @@ class MatchTile extends StatelessWidget {
   final TbaMatch match;
   final NexusMatch? nexus;
 
-  /// TBA team strengths for the event; when provided, an upcoming match shows
-  /// a prediction bar below the tile.
-  final Map<int, TeamRating>? ratings;
+  /// TBA ratings for the event; when provided, an upcoming match shows a
+  /// prediction bar below the tile.
+  final EventRatings? ratings;
 
   @override
   Widget build(BuildContext context) {

@@ -44,7 +44,7 @@ class OtherTeamSchedulesPage extends StatelessWidget {
 class _FullMatchTile extends StatelessWidget {
   const _FullMatchTile({required this.match, this.ratings});
   final TbaMatch match;
-  final Map<int, TeamRating>? ratings;
+  final EventRatings? ratings;
 
   @override
   Widget build(BuildContext context) {

@@ -120,4 +120,63 @@ void main() {
       }
     });
   });
+
+  group('Cholesky.addOuter', () {
+    test('matches factoring a + v·vᵀ from scratch', () {
+      final a = [
+        [4.0, 2.0, 0.0],
+        [2.0, 5.0, 3.0],
+        [0.0, 3.0, 6.0],
+      ];
+      const v = [1.0, 0.0, 2.0];
+      final grown = [
+        for (var i = 0; i < 3; i++)
+          [for (var j = 0; j < 3; j++) a[i][j] + v[i] * v[j]],
+      ];
+
+      final updated = Cholesky(a)..addOuter(v);
+
+      expect(updated.solve([1, 2, 3]), [
+        for (final x in Cholesky(grown).solve([1, 2, 3])) closeTo(x, 1e-12),
+      ]);
+    });
+
+    test('builds λI + AᵀA one alliance row at a time', () {
+      // The ridge OPR equations for 200 random three-robot alliances.
+      final rng = math.Random(751);
+      const n = 40;
+      const lambda = 1.0;
+      final ata = List.generate(
+        n,
+        (i) => List<double>.generate(n, (j) => i == j ? lambda : 0),
+      );
+      final solver = Cholesky.scaledIdentity(n, lambda);
+      for (var r = 0; r < 200; r++) {
+        final row = List<double>.filled(n, 0);
+        while (row.where((x) => x > 0).length < 3) {
+          row[rng.nextInt(n)] = 1;
+        }
+        for (var i = 0; i < n; i++) {
+          for (var j = 0; j < n; j++) {
+            ata[i][j] += row[i] * row[j];
+          }
+        }
+        solver.addOuter(row);
+      }
+      final b = List.generate(n, (_) => rng.nextDouble() * 100);
+
+      expect(solver.solve(b), [
+        for (final x in Cholesky(ata).solve(b)) closeTo(x, 1e-9),
+      ]);
+    });
+
+    test('rejects a non-positive scale and a mismatched v', () {
+      expect(() => Cholesky.scaledIdentity(2, 0), throwsArgumentError);
+      expect(() => Cholesky.scaledIdentity(2, double.nan), throwsArgumentError);
+      expect(
+        () => Cholesky.scaledIdentity(2, 1).addOuter([1]),
+        throwsArgumentError,
+      );
+    });
+  });
 }
