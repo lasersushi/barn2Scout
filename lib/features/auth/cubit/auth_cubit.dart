@@ -16,6 +16,7 @@ class AuthCubit extends Cubit<AuthState> {
     'cstinson29@priorypanther.com',
     'smunoz27@priorypanther.com',
     'asudhof29@priorypanther.com',
+    'jhaines29@priorypanther.com'
   };
   static const _superAdminEmails = {
     'lwalker30@priorypanther.com',
