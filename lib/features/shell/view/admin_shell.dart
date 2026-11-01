@@ -117,6 +117,7 @@ class _AdminShellState extends State<AdminShell> with WidgetsBindingObserver {
             ctx.read<ScoutingRepository>(),
             ctx.read<PitScoutingRepository>(),
             ctx.read<AssignmentRepository>(),
+            syncPicklists: true,
           )..syncNow(),
         ),
         BlocProvider(

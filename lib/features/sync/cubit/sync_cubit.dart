@@ -37,8 +37,9 @@ class SyncCubit extends Cubit<SyncState> {
     this._schedule,
     this._scouting,
     this._pitScouting,
-    this._assignments,
-  ) : super(const SyncIdle()) {
+    this._assignments, {
+    required this._syncPicklists,
+  }) : super(const SyncIdle()) {
     _startPeriodicPull();
     _watchForNewRecords();
     _watchForNewPitRecords();
@@ -49,6 +50,10 @@ class SyncCubit extends Cubit<SyncState> {
   final ScoutingRepository _scouting;
   final PitScoutingRepository _pitScouting;
   final AssignmentRepository _assignments;
+
+  /// Picklists are admin-only (and RLS-protected), so regular scouters'
+  /// devices never push or pull them.
+  final bool _syncPicklists;
 
   Timer? _pullTimer;
   StreamSubscription<List<ScoutingRecord>>? _recordSub;
@@ -76,13 +81,13 @@ class SyncCubit extends Cubit<SyncState> {
     });
   }
 
-  /// Full sync (push + pull records and picklists).
+  /// Full sync (push + pull records, plus picklists when [_syncPicklists]).
   Future<void> syncNow() async {
     if (state is SyncInProgress) return;
     emit(const SyncInProgress());
     try {
       final detected = await _schedule.detectCurrentEvent();
-      await _sync.sync(detected.key);
+      await _sync.sync(detected.key, includePicklists: _syncPicklists);
       await _pullAssignments(detected.key);
       emit(const SyncDone());
     } catch (e) {
@@ -107,7 +112,7 @@ class SyncCubit extends Cubit<SyncState> {
       final detected = await _schedule.detectCurrentEvent();
       await _sync.pullRecords(detected.key);
       await _sync.pullPitRecords(detected.key);
-      await _sync.pullPicklists();
+      if (_syncPicklists) await _sync.pullPicklists();
       await _pullAssignments(detected.key);
     } catch (_) {}
   }

@@ -108,6 +108,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
             ctx.read<ScoutingRepository>(),
             ctx.read<PitScoutingRepository>(),
             ctx.read<AssignmentRepository>(),
+            syncPicklists: false,
           )..syncNow(),
         ),
         BlocProvider(

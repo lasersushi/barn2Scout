@@ -25,14 +25,20 @@ class SyncRepository {
 
   // ── Full sync ─────────────────────────────────────────────────────────────
 
-  Future<void> sync(String eventKey) async {
+  /// [includePicklists] is false for regular scouters — picklists are
+  /// admin-only and RLS rejects their writes.
+  Future<void> sync(String eventKey, {required bool includePicklists}) async {
     if (!_authenticated) return;
     await pushRecords();
     await pullRecords(eventKey);
     await pushPitRecords();
     await pullPitRecords(eventKey);
-    await pushPicklists();
-    await pullPicklists();
+    if (includePicklists) {
+      // Pull first: upsert overwrites blindly, so pushing a fresh install's
+      // empty seed list before merging would wipe the real one on the server.
+      await pullPicklists();
+      await pushPicklists();
+    }
   }
 
   // ── Scouting records ─────────────────────────────────────────────────────

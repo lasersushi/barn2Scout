@@ -48,7 +48,14 @@ class PicklistRepository {
     }
 
     if (_lists.isEmpty) {
-      _lists = [Picklist(id: 'main', name: 'Main')];
+      // Epoch timestamp so any synced copy of 'main' wins the sync merge.
+      _lists = [
+        Picklist(
+          id: 'main',
+          name: 'Main',
+          updatedAt: DateTime.fromMillisecondsSinceEpoch(0),
+        ),
+      ];
     }
     if (!_lists.any((l) => l.id == _activeId)) {
       _activeId = _lists.first.id;

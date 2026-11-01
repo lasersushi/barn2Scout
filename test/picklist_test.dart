@@ -23,6 +23,15 @@ void main() {
       expect(repo.activeId, repo.lists.first.id);
     });
 
+    test('seeded list is older than any real edit, so sync never prefers it',
+        () async {
+      final repo = PicklistRepository(directoryOverride: tmp.path);
+      await repo.init();
+      final seeded = repo.lists.single;
+      final edited = Picklist(id: seeded.id, name: 'Main', picks: [254]);
+      expect(edited.updatedAt.isAfter(seeded.updatedAt), isTrue);
+    });
+
     test('persists and reloads lists across instances', () async {
       final repo = PicklistRepository(directoryOverride: tmp.path);
       await repo.init();
