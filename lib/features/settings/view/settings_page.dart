@@ -31,28 +31,33 @@ class SettingsPage extends StatelessWidget {
 
               _SectionHeader('Appearance'),
               ListTile(
-                title: const Text('Theme'),
-                trailing: SegmentedButton<ThemeMode>(
-                  segments: const [
-                    ButtonSegment(
-                      value: ThemeMode.system,
-                      icon: Icon(Icons.brightness_auto),
-                      label: Text('System'),
-                    ),
-                    ButtonSegment(
-                      value: ThemeMode.light,
-                      icon: Icon(Icons.light_mode),
-                      label: Text('Light'),
-                    ),
-                    ButtonSegment(
-                      value: ThemeMode.dark,
-                      icon: Icon(Icons.dark_mode),
-                      label: Text('Dark'),
-                    ),
-                  ],
-                  selected: {settings.themeMode},
-                  onSelectionChanged: (modes) =>
-                      context.read<SettingsCubit>().setThemeMode(modes.first),
+                // No 'Theme' label: the Appearance header already says what
+                // this is, and a label in `title` gets squeezed by the buttons.
+                title: SizedBox(
+                  width: double.infinity,
+                  child: SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        icon: Icon(Icons.brightness_auto),
+                        label: Text('System'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        icon: Icon(Icons.light_mode),
+                        label: Text('Light'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.dark,
+                        icon: Icon(Icons.dark_mode),
+                        label: Text('Dark'),
+                      ),
+                    ],
+                    selected: {settings.themeMode},
+                    onSelectionChanged: (modes) => context
+                        .read<SettingsCubit>()
+                        .setThemeMode(modes.first),
+                  ),
                 ),
               ),
 
