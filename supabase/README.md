@@ -15,7 +15,7 @@ You need [Docker](https://docs.docker.com/get-docker/) running and the [Supabase
    supabase start
    ```
 
-   It prints an **API URL** (`http://127.0.0.1:54321`) and an **anon key** (`supabase status` shows them again). Studio, a web view of the local database, is at http://127.0.0.1:54323.
+   It prints an **API URL** (`http://127.0.0.1:54321`) and a **Publishable key** (`sb_publishable_…`; older CLI versions call it the anon key). `supabase status` shows them again. These are the same fixed demo values on every computer, not secrets. Studio, a web view of the local database, is at http://127.0.0.1:54323.
 
 2. Make the local secrets file from the example and put an Anthropic API key in it. The example caps local spend at $2.
 
@@ -31,7 +31,7 @@ You need [Docker](https://docs.docker.com/get-docker/) running and the [Supabase
 
 4. Point a **debug** build of the app at the local stack. In `lib/core/config/app_config.dart`, which is gitignored, set:
    - `supabaseUrl`: `http://10.0.2.2:54321` on the Android emulator (that address is your computer, seen from the emulator), or `http://<your computer's LAN IP>:54321` on a real phone on the same Wi-Fi.
-   - `supabaseAnonKey`: the anon key from step 1.
+   - `supabaseAnonKey`: the Publishable key from step 1.
 
    Debug builds allow plain `http` for this (`android/app/src/debug/AndroidManifest.xml`); release builds don't. **Put the real values back before building anything for the team.** A build made with these values talks only to your computer.
 
