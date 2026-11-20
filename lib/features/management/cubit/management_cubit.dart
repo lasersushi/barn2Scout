@@ -109,6 +109,16 @@ class ManagementCubit extends Cubit<ManagementState> {
     }
   }
 
+  /// Grants or revokes the AI role. Returns an error message, or null.
+  Future<String?> setAiAccess(String userId, bool enabled) async {
+    try {
+      await _assignments.setAiAccess(userId, enabled);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   Future<void> _cancelSubs() async {
     await _profileSub?.cancel();
     await _assignmentSub?.cancel();

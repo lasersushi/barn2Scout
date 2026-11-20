@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'app.dart';
 import 'core/config/app_config.dart';
+import 'data/repositories/ai_repository.dart';
 import 'data/repositories/assignment_repository.dart';
 import 'data/repositories/event_repository.dart';
 import 'data/repositories/match_repository.dart';
@@ -16,13 +17,11 @@ import 'data/repositories/settings_repository.dart';
 import 'data/repositories/sync_repository.dart';
 import 'data/repositories/team_repository.dart';
 import 'data/repositories/update_repository.dart';
+import 'data/services/ai_service.dart';
 import 'data/services/isar_service.dart';
 import 'data/services/nexus_service.dart';
 import 'data/services/tba_service.dart';
 import 'features/settings/cubit/settings_cubit.dart';
-
-//TODO: Look into apple private cloud compute with foundation models from WWDC
-//TODO: Look into on-device AI integrated with gemini spark, or API
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -64,6 +63,13 @@ Future<void> main() async {
         RepositoryProvider(create: (_) => EventRepository(isar)),
         RepositoryProvider(create: (_) => AssignmentRepository(isar)),
         RepositoryProvider(create: (_) => UpdateRepository()),
+        RepositoryProvider(
+          create: (ctx) => AiRepository(
+            AiService(),
+            ctx.read<ScoutingRepository>(),
+            ctx.read<PitScoutingRepository>(),
+          ),
+        ),
         RepositoryProvider(
           create: (ctx) => ScheduleRepository(
             tba: TbaService(),

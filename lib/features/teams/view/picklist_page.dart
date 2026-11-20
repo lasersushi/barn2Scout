@@ -3,7 +3,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../data/models/team_rating.dart';
+import '../../../data/models/ai_models.dart';
 import '../../../data/models/team_strength.dart';
+import '../../../data/repositories/ai_repository.dart';
+import '../../ai/cubit/ai_access_cubit.dart';
+import '../../ai/view/ai_output_sheet.dart';
+import '../../schedule/cubit/schedule_cubit.dart';
 import '../cubit/picklist_cubit.dart';
 import '../cubit/ratings_cubit.dart';
 import 'picklist_sheet.dart';
@@ -134,6 +139,7 @@ class _ListBar extends StatelessWidget {
               PopupMenuItem(value: 'delete', child: Text('Delete list')),
             ],
           ),
+          _AiReviewButton(state: state, teams: teams),
           const SizedBox(width: 4),
           FilledButton.tonalIcon(
             onPressed: () => showPicklistSheet(context, teams),
@@ -141,6 +147,50 @@ class _ListBar extends StatelessWidget {
             label: Text('Picks ($pickCount)'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Opens the AI picklist review (admins). Hidden when the account can't use
+/// it or the event isn't loaded.
+class _AiReviewButton extends StatelessWidget {
+  const _AiReviewButton({required this.state, required this.teams});
+
+  final PicklistState state;
+  final List<TeamStrength> teams;
+
+  static String _status(PickStatus s) => switch (s) {
+        PickStatus.picked => 'picked',
+        PickStatus.veto => 'vetoed',
+        PickStatus.available => 'available',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final allowed = context.select<AiAccessCubit, bool>((c) =>
+        c.state is AiAccessReady &&
+        (c.state as AiAccessReady).access.can(AiKind.picklistReview));
+    final schedule = context.watch<ScheduleCubit>().state;
+    if (!allowed || schedule is! ScheduleLoaded) return const SizedBox.shrink();
+
+    return IconButton(
+      icon: const Icon(Icons.auto_awesome),
+      tooltip: 'AI review',
+      onPressed: () => AiOutputSheet.show(
+        context,
+        title: 'AI picklist review',
+        subtitle: state.active.name,
+        intro: 'Flags teams where our scouting disagrees with their rating, '
+            'and picked or vetoed teams worth a second look. It never '
+            'changes the order.',
+        buttonLabel: 'Review picklist',
+        start: () => context.read<AiRepository>().picklistReview(
+              eventKey: schedule.eventKey,
+              teams: teams,
+              statusOf: (t) => _status(state.statusOf(t)),
+              priorityOf: state.priorityOf,
+            ),
       ),
     );
   }

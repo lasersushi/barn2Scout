@@ -17,14 +17,15 @@ const ScoutProfileSchema = CollectionSchema(
   name: r'ScoutProfile',
   id: -4868609552857694421,
   properties: {
+    r'aiAccess': PropertySchema(id: 0, name: r'aiAccess', type: IsarType.bool),
     r'displayName': PropertySchema(
-      id: 0,
+      id: 1,
       name: r'displayName',
       type: IsarType.string,
     ),
-    r'email': PropertySchema(id: 1, name: r'email', type: IsarType.string),
-    r'role': PropertySchema(id: 2, name: r'role', type: IsarType.string),
-    r'userId': PropertySchema(id: 3, name: r'userId', type: IsarType.string),
+    r'email': PropertySchema(id: 2, name: r'email', type: IsarType.string),
+    r'role': PropertySchema(id: 3, name: r'role', type: IsarType.string),
+    r'userId': PropertySchema(id: 4, name: r'userId', type: IsarType.string),
   },
 
   estimateSize: _scoutProfileEstimateSize,
@@ -75,10 +76,11 @@ void _scoutProfileSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeString(offsets[0], object.displayName);
-  writer.writeString(offsets[1], object.email);
-  writer.writeString(offsets[2], object.role);
-  writer.writeString(offsets[3], object.userId);
+  writer.writeBool(offsets[0], object.aiAccess);
+  writer.writeString(offsets[1], object.displayName);
+  writer.writeString(offsets[2], object.email);
+  writer.writeString(offsets[3], object.role);
+  writer.writeString(offsets[4], object.userId);
 }
 
 ScoutProfile _scoutProfileDeserialize(
@@ -88,11 +90,12 @@ ScoutProfile _scoutProfileDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = ScoutProfile();
-  object.displayName = reader.readString(offsets[0]);
-  object.email = reader.readString(offsets[1]);
+  object.aiAccess = reader.readBool(offsets[0]);
+  object.displayName = reader.readString(offsets[1]);
+  object.email = reader.readString(offsets[2]);
   object.id = id;
-  object.role = reader.readString(offsets[2]);
-  object.userId = reader.readString(offsets[3]);
+  object.role = reader.readString(offsets[3]);
+  object.userId = reader.readString(offsets[4]);
   return object;
 }
 
@@ -104,12 +107,14 @@ P _scoutProfileDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readString(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 1:
       return (reader.readString(offset)) as P;
     case 2:
       return (reader.readString(offset)) as P;
     case 3:
+      return (reader.readString(offset)) as P;
+    case 4:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -327,6 +332,15 @@ extension ScoutProfileQueryWhere
 
 extension ScoutProfileQueryFilter
     on QueryBuilder<ScoutProfile, ScoutProfile, QFilterCondition> {
+  QueryBuilder<ScoutProfile, ScoutProfile, QAfterFilterCondition>
+  aiAccessEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(
+        FilterCondition.equalTo(property: r'aiAccess', value: value),
+      );
+    });
+  }
+
   QueryBuilder<ScoutProfile, ScoutProfile, QAfterFilterCondition>
   displayNameEqualTo(String value, {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -974,6 +988,18 @@ extension ScoutProfileQueryLinks
 
 extension ScoutProfileQuerySortBy
     on QueryBuilder<ScoutProfile, ScoutProfile, QSortBy> {
+  QueryBuilder<ScoutProfile, ScoutProfile, QAfterSortBy> sortByAiAccess() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'aiAccess', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ScoutProfile, ScoutProfile, QAfterSortBy> sortByAiAccessDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'aiAccess', Sort.desc);
+    });
+  }
+
   QueryBuilder<ScoutProfile, ScoutProfile, QAfterSortBy> sortByDisplayName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'displayName', Sort.asc);
@@ -1026,6 +1052,18 @@ extension ScoutProfileQuerySortBy
 
 extension ScoutProfileQuerySortThenBy
     on QueryBuilder<ScoutProfile, ScoutProfile, QSortThenBy> {
+  QueryBuilder<ScoutProfile, ScoutProfile, QAfterSortBy> thenByAiAccess() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'aiAccess', Sort.asc);
+    });
+  }
+
+  QueryBuilder<ScoutProfile, ScoutProfile, QAfterSortBy> thenByAiAccessDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'aiAccess', Sort.desc);
+    });
+  }
+
   QueryBuilder<ScoutProfile, ScoutProfile, QAfterSortBy> thenByDisplayName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'displayName', Sort.asc);
@@ -1090,6 +1128,12 @@ extension ScoutProfileQuerySortThenBy
 
 extension ScoutProfileQueryWhereDistinct
     on QueryBuilder<ScoutProfile, ScoutProfile, QDistinct> {
+  QueryBuilder<ScoutProfile, ScoutProfile, QDistinct> distinctByAiAccess() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'aiAccess');
+    });
+  }
+
   QueryBuilder<ScoutProfile, ScoutProfile, QDistinct> distinctByDisplayName({
     bool caseSensitive = true,
   }) {
@@ -1128,6 +1172,12 @@ extension ScoutProfileQueryProperty
   QueryBuilder<ScoutProfile, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<ScoutProfile, bool, QQueryOperations> aiAccessProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'aiAccess');
     });
   }
 

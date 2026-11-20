@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../data/repositories/ai_repository.dart';
 import '../../../data/repositories/assignment_repository.dart';
 import '../../../data/repositories/pit_scouting_repository.dart';
 import '../../../data/repositories/schedule_repository.dart';
 import '../../../data/repositories/scouting_repository.dart';
 import '../../../data/repositories/sync_repository.dart';
 import '../../../data/repositories/update_repository.dart';
+import '../../ai/cubit/ai_access_cubit.dart';
+import '../../ai/cubit/ai_chat_cubit.dart';
+import '../../ai/view/ai_page.dart';
 import '../../auth/cubit/auth_cubit.dart';
 import '../../records/view/records_page.dart';
 import '../../schedule/cubit/schedule_cubit.dart';
@@ -60,6 +64,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         const SchedulePage(),
         const TeamsPage(showPicklist: false),
         const RecordsPage(),
+        const AiPage(),
         const SettingsPage(),
         if (showPast) const PastMatchesPage(),
       ];
@@ -79,6 +84,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           icon: Icon(Icons.assignment_outlined),
           selectedIcon: Icon(Icons.assignment),
           label: 'Records',
+        ),
+        const NavigationDestination(
+          icon: Icon(Icons.auto_awesome_outlined),
+          selectedIcon: Icon(Icons.auto_awesome),
+          label: 'AI',
         ),
         const NavigationDestination(
           icon: Icon(Icons.settings_outlined),
@@ -115,6 +125,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           create: (ctx) =>
               UpdateCubit(ctx.read<UpdateRepository>())..init(),
         ),
+        BlocProvider(
+          create: (ctx) => AiAccessCubit(ctx.read<AiRepository>())..load(),
+        ),
+        BlocProvider(create: (ctx) => AiChatCubit(ctx.read<AiRepository>())),
       ],
       // Reload the schedule (and Past Matches) whenever the event override
       // changes, since the pages live in a kept-alive IndexedStack and would

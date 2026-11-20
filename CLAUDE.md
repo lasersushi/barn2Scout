@@ -32,6 +32,10 @@ flutter test test/prediction_backtest_test.dart test/picklist_backtest_test.dart
 
 # Re-download the backtest fixtures from TBA (reads the key from app_config.dart)
 dart run tool/fetch_backtest_fixtures.dart
+
+# AI Edge Function: unit tests, type-check (needs Deno)
+deno test supabase/functions/ai
+deno check supabase/functions/ai/index.ts
 ```
 
 Hot reload: press `r` in the terminal running `flutter run`. Hot restart: `R`.
@@ -50,7 +54,7 @@ lib/
     utils/                # stats_utils (normalCdf), linear_algebra (Cholesky, for the rating model), qr_record_codec, app_version (version comparison)
   data/
     models/               # Isar @collection classes + plain value types
-    services/             # IsarService, TbaService, NexusService
+    services/             # IsarService, TbaService, NexusService, AiService (streams the `ai` Edge Function)
     repositories/         # All repo classes; ScheduleRepository is the most complex
   features/
     auth/                 # AuthCubit (3 auth tiers) + LoginPage (@priorypanther.com / @prioryca.org email+password)
@@ -63,8 +67,10 @@ lib/
     teams/                    # Rankings + Pit Map + Picklist sub-tabs; TeamDossierSheet (TBA-only)
     settings/                 # Preferences + account section backed by JSON file (not Isar); includes customizable auto-logout time
     update/                    # UpdateCubit + UpdateBanner — GitHub APK OTA (Android only)
+    ai/                        # AI tab (team summaries, match briefs, chat) + AiContextBuilder; see "AI assistant"
   prototype/                  # Throwaway explorations; never imported from real code
 tool/                          # Dev-only Dart CLIs (backtest fixture fetcher); never imported by the app
+supabase/                      # SQL migrations + the `ai` Edge Function (Deno). Deployed by hand; see supabase/README.md
 ```
 
 **Data flow rule:** UI and Blocs talk only to repositories, never directly to Isar/TBA/Supabase.
@@ -218,6 +224,23 @@ Two separate update paths — both are transparent to scouters:
 ## Offline caching
 
 `MatchRepository` and `EventRepository` are Isar-backed caches so the schedule works offline after first load. `ScheduleRepository` writes through to them and reads from them when the network is unavailable. They are distinct from the scouting record repositories and never contain user-generated data. `PriorRatingsStore` does the same for the rating model's borrowed priors, as one JSON file per event (see "Pre-comp ratings").
+
+## AI assistant
+
+The **AI** tab (both shells, before Settings) plus an "AI review" button on the Picklist. All Claude calls go through the `ai` Supabase Edge Function (`supabase/functions/ai/`), which holds the Anthropic key, so the app never ships one. The model is the `MODEL` constant in `policy.ts` (Claude Sonnet 5.5); changing it needs no app release.
+
+| Feature | Who | Limit |
+|---|---|---|
+| Team summary | Everyone | 20 per day (`AI_DAILY_LIMIT`); cache hits are free |
+| Match brief, Chat | AI role (`profiles.ai_access`) + admins | Unlimited |
+| Picklist review | Admins | Unlimited |
+
+- **Button-only.** Opening a sheet never generates; `AiGenerateCubit.generate()` runs only from its button.
+- **Shared cache.** Summaries, briefs and reviews are cached in `ai_cache`, keyed by a hash of the prompt version, model and payload. Unchanged scouting data returns the stored text for free, on every device. Bump `PROMPT_VERSION` after editing `prompts.ts`.
+- **Budget.** `ai_try_consume` refuses every request, admins' included, once the month's spend reaches `AI_MONTH_CAP_USD` (default $20) or the calendar year's reaches `AI_YEAR_CAP_USD` (default $48). Spend is computed from each response's `usage` with the price table in `policy.ts`; keep it in step with Anthropic's pricing page.
+- **AI role.** Admins toggle it in Manage → AI access (`set_ai_access` RPC, admin-checked server-side). The server reads admin status from `profiles.role`, not `AuthCubit`'s email lists, so keep mentors' roles set there.
+- **Analytics rule still holds.** AI output is text for people to read and never feeds `RatingModel`, `TeamStrength.rank`, `MatchPrediction` or the picklist order. `AiContextBuilder` sends scouting as raw labelled per-match observations (no averages or totals), and every prompt tells the model that numbers come only from the `tba` section. Scouter names and timestamps are left out of payloads.
+- **Size.** `AiContextBuilder` trims the oldest match reports past a character budget (chat ≈ 25K tokens) and reports `omittedReports`, which the chat header shows.
 
 ## State management
 

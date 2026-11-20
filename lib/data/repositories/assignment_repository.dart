@@ -103,6 +103,16 @@ class AssignmentRepository {
     await pullForEvent(eventKey);
   }
 
+  /// Grants or revokes the AI role. The `set_ai_access` RPC refuses unless the
+  /// caller is an admin.
+  Future<void> setAiAccess(String userId, bool enabled) async {
+    await _client.rpc('set_ai_access', params: {
+      'target': userId,
+      'enabled': enabled,
+    });
+    await pullProfiles();
+  }
+
   Future<void> pullForEvent(String eventKey) async {
     if (_client.auth.currentUser == null) return;
 

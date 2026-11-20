@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../data/models/scout_profile.dart';
 import '../cubit/management_cubit.dart';
+import 'ai_access_page.dart';
 import 'assign_sheet.dart';
 import 'scout_xp_page.dart';
 
@@ -74,6 +75,17 @@ class _Roster extends StatelessWidget {
           subtitle: const Text('Reports filed and XP earned by each scout'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => ScoutXpPage.push(context),
+        ),
+
+        ListTile(
+          leading: const Icon(Icons.auto_awesome_outlined),
+          title: const Text('AI access'),
+          subtitle: Text(
+            '${state.profiles.where((p) => p.aiAccess && !p.isAdmin).length} '
+            'scouts with the AI role',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => AiAccessPage.push(context),
         ),
 
         const _SectionHeader('Scouts'),
