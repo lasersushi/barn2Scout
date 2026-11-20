@@ -18,21 +18,35 @@ class AiMatchBriefList extends StatelessWidget {
     return BlocBuilder<ScheduleCubit, ScheduleState>(
       builder: (context, state) {
         if (state is! ScheduleLoaded) return const SizedBox.shrink();
-        final matches = state.myUpcomingMatches;
+        // Upcoming matches; once all are played (or when testing against a
+        // finished event via the event override), our played ones instead.
+        final upcoming = state.myUpcomingMatches;
+        final showingPlayed = upcoming.isEmpty;
+        final matches = showingPlayed ? state.myMatches : upcoming;
 
         if (matches.isEmpty) {
           return const AiMessage(
             icon: Icons.sports_esports_outlined,
-            title: 'No upcoming matches',
+            title: 'No matches yet',
             body: 'Briefs appear here once TBA posts our match schedule.',
           );
         }
 
         return ListView.separated(
-          itemCount: matches.length,
+          itemCount: matches.length + (showingPlayed ? 1 : 0),
           separatorBuilder: (_, _) => const Divider(height: 1),
-          itemBuilder: (context, i) {
-            final m = matches[i];
+          itemBuilder: (context, index) {
+            if (showingPlayed && index == 0) {
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'No upcoming matches, so these are our played ones.',
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+              );
+            }
+            final m = matches[showingPlayed ? index - 1 : index];
             final side = m.allianceFor(AppConfig.myTeamKey);
             return ListTile(
               leading: Icon(

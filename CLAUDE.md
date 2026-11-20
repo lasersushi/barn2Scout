@@ -36,6 +36,11 @@ dart run tool/fetch_backtest_fixtures.dart
 # AI Edge Function: unit tests, type-check (needs Deno)
 deno test supabase/functions/ai
 deno check supabase/functions/ai/index.ts
+
+# Local Supabase stack for testing AI (needs Docker); full steps in supabase/README.md
+supabase start
+supabase functions serve ai --env-file supabase/functions/.env.local
+dart run tool/generate_local_seed.dart   # regenerate supabase/seed.sql, then: supabase db reset
 ```
 
 Hot reload: press `r` in the terminal running `flutter run`. Hot restart: `R`.
@@ -69,7 +74,7 @@ lib/
     update/                    # UpdateCubit + UpdateBanner — GitHub APK OTA (Android only)
     ai/                        # AI tab (team summaries, match briefs, chat) + AiContextBuilder; see "AI assistant"
   prototype/                  # Throwaway explorations; never imported from real code
-tool/                          # Dev-only Dart CLIs (backtest fixture fetcher); never imported by the app
+tool/                          # Dev-only Dart CLIs (backtest fixture fetcher, local seed generator); never imported by the app
 supabase/                      # SQL migrations + the `ai` Edge Function (Deno). Deployed by hand; see supabase/README.md
 ```
 
@@ -240,6 +245,7 @@ The **AI** tab (both shells, before Settings) plus an "AI review" button on the 
 - **Budget.** `ai_try_consume` refuses every request, admins' included, once the month's spend reaches `AI_MONTH_CAP_USD` (default $20) or the calendar year's reaches `AI_YEAR_CAP_USD` (default $48). Spend is computed from each response's `usage` with the price table in `policy.ts`; keep it in step with Anthropic's pricing page.
 - **AI role.** Admins toggle it in Manage → AI access (`set_ai_access` RPC, admin-checked server-side). The server reads admin status from `profiles.role`, not `AuthCubit`'s email lists, so keep mentors' roles set there.
 - **Analytics rule still holds.** AI output is text for people to read and never feeds `RatingModel`, `TeamStrength.rank`, `MatchPrediction` or the picklist order. `AiContextBuilder` sends scouting as raw labelled per-match observations (no averages or totals), and every prompt tells the model that numbers come only from the `tba` section. Scouter names and timestamps are left out of payloads.
+- **Testing.** Not in production yet. Test against a local stack (`supabase start`), never the real project: `supabase/README.md` → "Test locally". The local-only migration `20261119000000_local_stand_in_schema.sql` stands in for the real project's dashboard-made tables and is guarded to do nothing where `profiles` exists. `seed.sql` holds three test accounts and *sample* (made-up) scouting for `2026cacac`; use Settings → Event Key Override to point the app at it.
 - **Size.** `AiContextBuilder` trims the oldest match reports past a character budget (chat ≈ 25K tokens) and reports `omittedReports`, which the chat header shows.
 
 ## State management
